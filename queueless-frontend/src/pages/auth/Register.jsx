@@ -4,7 +4,7 @@ import { api } from '../../services/api';
 import { Clock } from 'lucide-react';
 
 export default function Register({ onLoginClick, onRegisterSuccess }) {
-  const { register } = useAuth();
+  const { register, refreshUser } = useAuth();
   const [role, setRole] = useState('CUSTOMER'); // CUSTOMER or BUSINESS_USER
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -14,9 +14,20 @@ export default function Register({ onLoginClick, onRegisterSuccess }) {
   // Business-specific fields
   const [businessName, setBusinessName] = useState('');
   const [businessCategory, setBusinessCategory] = useState('Healthcare & Clinic');
+  const [plans, setPlans] = useState([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  React.useEffect(() => {
+    api.getPlans().then(res => {
+      if (res.success && res.data?.length > 0) {
+        setPlans(res.data);
+        setSelectedPlanId(res.data[0].id);
+      }
+    }).catch(console.error);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +45,7 @@ export default function Register({ onLoginClick, onRegisterSuccess }) {
 
       // If registered as Business User, create the initial business entity
       if (role === 'BUSINESS_USER' && businessName) {
-        await api.createBusiness({
+        const bRes = await api.createBusiness({
           name: businessName,
           category: businessCategory,
           phone,
@@ -42,7 +53,14 @@ export default function Register({ onLoginClick, onRegisterSuccess }) {
           initialBranchName: 'Main Branch',
           address: 'Central Plaza',
           city: 'Bengaluru',
+          planId: selectedPlanId,
         });
+
+        if (bRes.token) {
+          await refreshUser(bRes.token);
+        } else {
+          await refreshUser();
+        }
       }
 
       if (onRegisterSuccess) onRegisterSuccess();
@@ -182,6 +200,23 @@ export default function Register({ onLoginClick, onRegisterSuccess }) {
                   <option value="Automotive & Service">Automotive & Service</option>
                   <option value="Banking & Financial">Banking & Financial</option>
                   <option value="Government & Academic">Government & Academic</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                  Subscription Tier
+                </label>
+                <select 
+                  className="form-input" 
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                >
+                  {plans.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {p.priceMonthly > 0 ? `₹${p.priceMonthly}/mo` : 'Free / Trial'}
+                    </option>
+                  ))}
                 </select>
               </div>
             </>

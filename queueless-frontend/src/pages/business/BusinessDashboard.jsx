@@ -13,7 +13,8 @@ import {
   Play, 
   StopCircle, 
   Clock, 
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 
 export default function BusinessDashboard() {
@@ -64,8 +65,13 @@ export default function BusinessDashboard() {
   async function loadQueueDetails(queueId) {
     try {
       const res = await api.getQueue(queueId);
-      if (res.success) {
+      if (res.success && res.data) {
         setSelectedQueue(res.data);
+        setQueues((prev) =>
+          prev.map((q) =>
+            q.id === queueId ? { ...q, status: res.data.status, title: res.data.title } : q
+          )
+        );
       }
     } catch (err) {
       console.error(err);
@@ -145,24 +151,74 @@ export default function BusinessDashboard() {
     if (!selectedQueue) return;
     try {
       if (selectedQueue.status === 'OPEN') {
-        await api.pauseQueue(selectedQueue.id);
+        const res = await api.pauseQueue(selectedQueue.id);
+        if (res.success) {
+          setSelectedQueue((prev) => ({ ...prev, status: 'PAUSED' }));
+          setQueues((prev) =>
+            prev.map((q) => (q.id === selectedQueue.id ? { ...q, status: 'PAUSED' } : q))
+          );
+        }
       } else {
-        await api.resumeQueue(selectedQueue.id);
+        const res = await api.resumeQueue(selectedQueue.id);
+        if (res.success) {
+          setSelectedQueue((prev) => ({ ...prev, status: 'OPEN' }));
+          setQueues((prev) =>
+            prev.map((q) => (q.id === selectedQueue.id ? { ...q, status: 'OPEN' } : q))
+          );
+        }
       }
-      loadQueueDetails(selectedQueue.id);
+      await loadQueueDetails(selectedQueue.id);
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleQuickSetupQueue = async () => {
+    if (!activeBusiness?.id) return;
+    setActionLoading(true);
+    try {
+      const branchesRes = await api.getBusinessBranches(activeBusiness.id);
+      let branchId = branchesRes.data?.[0]?.id;
+      if (!branchId) {
+        const newBranch = await api.createBranch(activeBusiness.id, {
+          name: 'Main Branch',
+          address: 'Central Plaza',
+          city: 'Bengaluru',
+        });
+        branchId = newBranch.data.id;
+      }
+
+      const serviceRes = await api.createService(branchId, {
+        name: 'General Consultation',
+        description: 'Primary customer service & queue desk',
+        avgDurationMinutes: 15,
+      });
+
+      await api.openQueue(serviceRes.data.id, {
+        title: "Today's Live Queue",
+      });
+
+      await loadBusinessData();
+    } catch (err) {
+      alert(err.message || 'Failed to initialize queue');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleAddWalkIn = async (e) => {
     e.preventDefault();
     if (!walkInName.trim()) return;
+    if (!selectedQueue?.id) {
+      alert('No active queue available. Please initialize or open a queue first.');
+      return;
+    }
     setActionLoading(true);
     try {
       const res = await api.joinQueue(selectedQueue.id, {
         customerName: `${walkInName.trim()} (Walk-in)`,
         customerPhone: walkInPhone,
+        isWalkIn: true,
       });
       if (res.success) {
         setShowWalkInModal(false);
@@ -196,7 +252,9 @@ export default function BusinessDashboard() {
   }
 
   const entries = selectedQueue?.entries || [];
-  const servingCustomer = entries.find((e) => e.status === 'SERVING' || e.status === 'CALLED');
+  const servingCustomer = entries
+    .filter((e) => e.status === 'SERVING' || e.status === 'CALLED')
+    .sort((a, b) => new Date(b.calledAt || 0) - new Date(a.calledAt || 0))[0] || null;
   const waitingEntries = entries.filter((e) => ['WAITING', 'CHECKED_IN'].includes(e.status));
   const skippedEntries = entries.filter((e) => e.status === 'SKIPPED');
 
@@ -230,15 +288,67 @@ export default function BusinessDashboard() {
             </select>
           )}
 
-          <button onClick={() => setShowWalkInModal(true)} className="btn-secondary">
+          <button 
+            onClick={() => {
+              if (!selectedQueue?.id) {
+                if (queues.length === 0) {
+                  handleQuickSetupQueue();
+                } else {
+                  alert('Please select an active queue first.');
+                }
+                return;
+              }
+              setShowWalkInModal(true);
+            }} 
+            className="btn-secondary"
+          >
             <UserPlus size={16} /> Add Walk-in
           </button>
 
-          <button onClick={handleTogglePause} className="btn-secondary">
+          <button onClick={handleTogglePause} className="btn-secondary" disabled={!selectedQueue?.id}>
             {selectedQueue?.status === 'OPEN' ? <><Pause size={16} /> Pause Queue</> : <><Play size={16} /> Resume Queue</>}
           </button>
         </div>
       </div>
+
+      {/* Warning & Quick Setup if No Queue Exists */}
+      {queues.length === 0 && (
+        <div style={{
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: 14,
+          padding: '20px 24px',
+          marginBottom: 28,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 16,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ background: '#fef3c7', padding: 10, borderRadius: 10, color: '#d97706' }}>
+              <AlertCircle size={24} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#92400e' }}>
+                No Active Live Queue Setup for This Business Yet
+              </div>
+              <p style={{ color: '#b45309', fontSize: '0.85rem', marginTop: 2 }}>
+                Open your primary service queue to start adding walk-in customers and calling tokens.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleQuickSetupQueue}
+            disabled={actionLoading}
+            className="btn-primary"
+            style={{ padding: '10px 22px', fontSize: '0.88rem' }}
+          >
+            <Sparkles size={16} /> {actionLoading ? 'Initializing...' : 'Initialize & Open First Queue'}
+          </button>
+        </div>
+      )}
 
       {/* Main Grid: Left Control Console & Right Waiting Roster */}
       <div className="grid-cols-3" style={{ gridTemplateColumns: '1fr 2fr', gap: 24 }}>
@@ -451,46 +561,102 @@ export default function BusinessDashboard() {
         }}>
           <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 30, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
             <h3 style={{ fontSize: '1.3rem', marginBottom: 6 }}>Add Walk-in Customer</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 20 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 18 }}>
               Issue a token ticket directly from the receptionist desk.
             </p>
 
-            <form onSubmit={handleAddWalkIn}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                  Customer Name *
-                </label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. Ramesh Kumar"
-                  value={walkInName}
-                  onChange={(e) => setWalkInName(e.target.value)}
-                  autoFocus
-                  required
-                />
+            {!selectedQueue?.id ? (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ color: '#b45309', fontSize: '0.9rem', marginBottom: 16 }}>
+                  No active queue found. You must initialize or open a queue before issuing tickets.
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button type="button" onClick={() => setShowWalkInModal(false)} className="btn-secondary">
+                    Cancel
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={async () => {
+                      await handleQuickSetupQueue();
+                      setShowWalkInModal(false);
+                    }} 
+                    className="btn-primary"
+                  >
+                    <Sparkles size={16} /> Initialize Queue Now
+                  </button>
+                </div>
               </div>
+            ) : (
+              <form onSubmit={handleAddWalkIn}>
+                {queues.length > 1 ? (
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                      Select Queue *
+                    </label>
+                    <select
+                      className="form-input"
+                      value={selectedQueue.id}
+                      onChange={(e) => {
+                        const found = queues.find(q => q.id === e.target.value);
+                        setSelectedQueue(found);
+                        loadQueueDetails(e.target.value);
+                      }}
+                    >
+                      {queues.map(q => (
+                        <option key={q.id} value={q.id}>{q.service?.name} ({q.title})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ 
+                    background: '#f8fafc', 
+                    border: '1px solid var(--border-subtle)', 
+                    padding: '8px 12px', 
+                    borderRadius: 8, 
+                    fontSize: '0.8rem', 
+                    color: 'var(--text-muted)', 
+                    marginBottom: 16 
+                  }}>
+                    Target Queue: <strong style={{ color: '#4f46e5' }}>{selectedQueue?.service?.name || selectedQueue?.title}</strong>
+                  </div>
+                )}
 
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                  Phone Number (optional)
-                </label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. +91 9845012345"
-                  value={walkInPhone}
-                  onChange={(e) => setWalkInPhone(e.target.value)}
-                />
-              </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Customer Name *
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. Ramesh Kumar"
+                    value={walkInName}
+                    onChange={(e) => setWalkInName(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
 
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setShowWalkInModal(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={actionLoading} className="btn-primary">
-                  {actionLoading ? 'Issuing...' : 'Issue Token'}
-                </button>
-              </div>
-            </form>
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Phone Number (optional)
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. +91 9845012345"
+                    value={walkInPhone}
+                    onChange={(e) => setWalkInPhone(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setShowWalkInModal(false)} className="btn-secondary">Cancel</button>
+                  <button type="submit" disabled={actionLoading} className="btn-primary">
+                    {actionLoading ? 'Issuing...' : 'Issue Token'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

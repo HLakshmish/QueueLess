@@ -31,6 +31,21 @@ export async function buildApp() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
+  // Allow empty body when content-type is application/json
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
+    if (!body || typeof body !== 'string' || body.trim() === '') {
+      done(null, {});
+      return;
+    }
+    try {
+      const json = JSON.parse(body);
+      done(null, json);
+    } catch (err) {
+      err.statusCode = 400;
+      done(err, undefined);
+    }
+  });
+
   // Sensible helpers
   await fastify.register(fastifySensible);
 

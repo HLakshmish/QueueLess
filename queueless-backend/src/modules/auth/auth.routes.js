@@ -73,7 +73,13 @@ export default async function authRoutes(fastify, options) {
       include: {
         memberships: {
           include: {
-            business: true,
+            business: {
+              include: {
+                subscription: {
+                  include: { plan: true },
+                },
+              },
+            },
           },
         },
       },

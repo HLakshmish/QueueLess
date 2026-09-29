@@ -191,6 +191,18 @@ export default async function queueEntryRoutes(fastify, options) {
         return reply.code(404).send({ success: false, error: 'Queue entry not found' });
       }
 
+      // Mark any currently called/serving customer as served
+      await prisma.queueEntry.updateMany({
+        where: {
+          queueId: entry.queueId,
+          status: { in: ['CALLED', 'SERVING'] },
+        },
+        data: {
+          status: 'SERVED',
+          servedAt: new Date(),
+        },
+      });
+
       const updated = await prisma.queueEntry.update({
         where: { id: entryId },
         data: {

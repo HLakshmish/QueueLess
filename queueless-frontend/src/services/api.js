@@ -2,21 +2,37 @@ const API_BASE = '/api/v1';
 
 export async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem('queueless_token');
+  const method = (options.method || 'GET').toUpperCase();
+
   const headers = {
-    'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const fetchOptions = {
     ...options,
-    headers,
-  });
+    method,
+  };
+
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    if (!headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (fetchOptions.body === undefined) {
+      fetchOptions.body = JSON.stringify({});
+    }
+  } else {
+    delete headers['Content-Type'];
+  }
+
+  fetchOptions.headers = headers;
+
+  const response = await fetch(`${API_BASE}${endpoint}`, fetchOptions);
 
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const errorMsg = data?.error || data?.message || `Request failed (${response.status})`;
+    const errorMsg = data?.error || data?.message || (typeof data === 'string' ? data : `Request failed (${response.status})`);
     throw new Error(errorMsg);
   }
 
@@ -69,4 +85,11 @@ export const api = {
   getAdminBusinesses: () => apiRequest('/admin/businesses'),
   updateBusinessStatus: (id, status) => apiRequest(`/admin/businesses/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   getAdminAuditLogs: () => apiRequest('/admin/audit-logs'),
+  getAdminPlans: () => apiRequest('/admin/plans'),
+  createAdminPlan: (data) => apiRequest('/admin/plans', { method: 'POST', body: JSON.stringify(data) }),
+  updateAdminPlan: (id, data) => apiRequest(`/admin/plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAdminPlan: (id) => apiRequest(`/admin/plans/${id}`, { method: 'DELETE' }),
+  getAdminSubscriptions: () => apiRequest('/admin/subscriptions'),
+  updateAdminSubscription: (id, data) => apiRequest(`/admin/subscriptions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  assignAdminSubscription: (data) => apiRequest('/admin/subscriptions/assign', { method: 'POST', body: JSON.stringify(data) }),
 };

@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import ExploreQueues from './pages/customer/ExploreQueues';
 import ActiveQueueTicket from './pages/customer/ActiveQueueTicket';
 import QueueHistory from './pages/customer/QueueHistory';
+import JoinBusiness from './pages/customer/JoinBusiness';
 
 import BusinessDashboard from './pages/business/BusinessDashboard';
 import ServicesBranches from './pages/business/ServicesBranches';
@@ -55,7 +56,17 @@ function MainApp() {
       <main style={{ flex: 1 }}>
         {/* Customer Views */}
         {currentView === 'explore' && (
-          <ExploreQueues onTicketIssued={handleTicketIssued} />
+          <ExploreQueues 
+            onTicketIssued={handleTicketIssued} 
+            onJoinBusiness={() => setCurrentView('join-business')} 
+          />
+        )}
+
+        {currentView === 'join-business' && (
+          <JoinBusiness 
+            onSuccess={() => setCurrentView('business-desk')} 
+            onCancel={() => setCurrentView('explore')} 
+          />
         )}
 
         {currentView === 'my-ticket' && (

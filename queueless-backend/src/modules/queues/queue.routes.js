@@ -73,7 +73,9 @@ export default async function queueRoutes(fastify, options) {
     }
 
     const waitingEntries = queue.entries.filter((e) => e.status === 'WAITING' || e.status === 'CHECKED_IN');
-    const servingEntry = queue.entries.find((e) => e.status === 'SERVING' || e.status === 'CALLED');
+    const servingEntry = queue.entries
+      .filter((e) => e.status === 'SERVING' || e.status === 'CALLED')
+      .sort((a, b) => new Date(b.calledAt || 0) - new Date(a.calledAt || 0))[0] || null;
 
     const avgDuration = queue.service.avgDurationMinutes || 15;
 
@@ -93,130 +95,152 @@ export default async function queueRoutes(fastify, options) {
   // POST /api/v1/queues/:queueId/join - Join Queue (Customer or Walk-in)
   fastify.post('/queues/:queueId/join', async (request, reply) => {
     const { queueId } = request.params;
-    const { customerName, customerPhone, notes } = request.body || {};
+    const { customerName, customerPhone, notes, isWalkIn } = request.body || {};
 
     let userId = null;
     let name = customerName;
     let phone = customerPhone;
 
-    // Optional auth check for logged-in customer
+    // Optional auth check: only attach userId if the authenticated user is a CUSTOMER joining for themselves
     try {
       await request.jwtVerify();
-      userId = request.user.id;
-      if (!name) name = request.user.fullName;
-      if (!phone) phone = request.user.phone;
+      if (!isWalkIn && request.user.role === 'CUSTOMER') {
+        userId = request.user.id;
+        if (!name) name = request.user.fullName;
+        if (!phone) phone = request.user.phone;
+      } else {
+        // Operator desk issuing ticket for a walk-in visitor
+        userId = null;
+      }
     } catch (e) {
       // Unauthenticated walk-in/remote guest
+      userId = null;
     }
 
-    if (!name) {
+    if (!name || !name.trim()) {
       return reply.code(400).send({ success: false, error: 'Customer name is required' });
     }
 
-    // Atomic transaction to ensure queue state and numbering consistency
-    const result = await prisma.$transaction(async (tx) => {
-      const queue = await tx.queue.findUnique({
-        where: { id: queueId },
-        include: { service: true },
-      });
+    try {
+      // Atomic transaction to ensure queue state and numbering consistency
+      const result = await prisma.$transaction(async (tx) => {
+        const queue = await tx.queue.findUnique({
+          where: { id: queueId },
+          include: { service: true },
+        });
 
-      if (!queue) {
-        throw new Error('QUEUE_NOT_FOUND');
-      }
+        if (!queue) {
+          throw new Error('QUEUE_NOT_FOUND');
+        }
 
-      if (queue.status !== 'OPEN') {
-        throw new Error('QUEUE_NOT_OPEN');
-      }
+        if (queue.status !== 'OPEN') {
+          throw new Error('QUEUE_NOT_OPEN');
+        }
 
-      // Prevent duplicate active queue entries for the same registered user
-      if (userId) {
-        const existingEntry = await tx.queueEntry.findFirst({
+        // Prevent duplicate active queue entries ONLY for registered customers joining for themselves
+        if (userId) {
+          const existingEntry = await tx.queueEntry.findFirst({
+            where: {
+              queueId,
+              userId,
+              status: { in: ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'] },
+            },
+          });
+          if (existingEntry) {
+            throw new Error('ALREADY_IN_QUEUE');
+          }
+        }
+
+        // Check capacity
+        if (queue.maxCapacity) {
+          const currentActiveCount = await tx.queueEntry.count({
+            where: {
+              queueId,
+              status: { in: ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'] },
+            },
+          });
+          if (currentActiveCount >= queue.maxCapacity) {
+            throw new Error('QUEUE_CAPACITY_REACHED');
+          }
+        }
+
+        // Highest queue number assigned today
+        const lastEntry = await tx.queueEntry.findFirst({
+          where: { queueId },
+          orderBy: { queueNumber: 'desc' },
+        });
+
+        const nextQueueNumber = (lastEntry?.queueNumber || 0) + 1;
+
+        // Count waiting customers ahead
+        const peopleAhead = await tx.queueEntry.count({
           where: {
+            queueId,
+            status: { in: ['WAITING', 'CHECKED_IN'] },
+          },
+        });
+
+        const avgDuration = queue.service.avgDurationMinutes || 15;
+        const estimatedWait = peopleAhead * avgDuration;
+
+        const entry = await tx.queueEntry.create({
+          data: {
             queueId,
             userId,
-            status: { in: ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'] },
+            customerName: name.trim(),
+            customerPhone: phone ? phone.trim() : null,
+            queueNumber: nextQueueNumber,
+            status: 'WAITING',
+            estimatedWaitMinutes: estimatedWait,
+            notes: notes || (isWalkIn ? 'Walk-in visitor' : undefined),
           },
         });
-        if (existingEntry) {
-          throw new Error('ALREADY_IN_QUEUE');
-        }
-      }
 
-      // Check capacity
-      if (queue.maxCapacity) {
-        const currentActiveCount = await tx.queueEntry.count({
-          where: {
+        // Log event
+        await tx.queueEvent.create({
+          data: {
             queueId,
-            status: { in: ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'] },
+            entryId: entry.id,
+            eventType: 'JOINED',
+            details: `Queue number #${nextQueueNumber} joined.`,
           },
         });
-        if (currentActiveCount >= queue.maxCapacity) {
-          throw new Error('QUEUE_CAPACITY_REACHED');
-        }
+
+        return { entry, peopleAhead, estimatedWait };
+      });
+
+      // Broadcast real-time update
+      if (fastify.broadcastQueueUpdate) {
+        fastify.broadcastQueueUpdate(queueId, {
+          type: 'CUSTOMER_JOINED',
+          queueId,
+          entry: result.entry,
+        });
       }
 
-      // Highest queue number assigned today
-      const lastEntry = await tx.queueEntry.findFirst({
-        where: { queueId },
-        orderBy: { queueNumber: 'desc' },
-      });
-
-      const nextQueueNumber = (lastEntry?.queueNumber || 0) + 1;
-
-      // Count waiting customers ahead
-      const peopleAhead = await tx.queueEntry.count({
-        where: {
-          queueId,
-          status: { in: ['WAITING', 'CHECKED_IN'] },
-        },
-      });
-
-      const avgDuration = queue.service.avgDurationMinutes || 15;
-      const estimatedWait = peopleAhead * avgDuration;
-
-      const entry = await tx.queueEntry.create({
+      return reply.code(201).send({
+        success: true,
         data: {
-          queueId,
-          userId,
-          customerName: name,
-          customerPhone: phone,
-          queueNumber: nextQueueNumber,
-          status: 'WAITING',
-          estimatedWaitMinutes: estimatedWait,
-          notes,
+          entry: result.entry,
+          peopleAhead: result.peopleAhead,
+          estimatedWaitMinutes: result.estimatedWait,
         },
       });
-
-      // Log event
-      await tx.queueEvent.create({
-        data: {
-          queueId,
-          entryId: entry.id,
-          eventType: 'JOINED',
-          details: `Queue number #${nextQueueNumber} joined.`,
-        },
-      });
-
-      return { entry, peopleAhead, estimatedWait };
-    });
-
-    // Broadcast real-time update
-    if (fastify.broadcastQueueUpdate) {
-      fastify.broadcastQueueUpdate(queueId, {
-        type: 'CUSTOMER_JOINED',
-        queueId,
-        entry: result.entry,
-      });
+    } catch (err) {
+      if (err.message === 'QUEUE_NOT_FOUND') {
+        return reply.code(404).send({ success: false, error: 'Queue not found.' });
+      }
+      if (err.message === 'QUEUE_NOT_OPEN') {
+        return reply.code(400).send({ success: false, error: 'Queue is currently closed or paused.' });
+      }
+      if (err.message === 'ALREADY_IN_QUEUE') {
+        return reply.code(400).send({ success: false, error: 'You are already in this queue with an active ticket.' });
+      }
+      if (err.message === 'QUEUE_CAPACITY_REACHED') {
+        return reply.code(400).send({ success: false, error: 'Queue capacity limit has been reached for today.' });
+      }
+      throw err;
     }
-
-    return reply.code(201).send({
-      success: true,
-      data: {
-        entry: result.entry,
-        peopleAhead: result.peopleAhead,
-        estimatedWaitMinutes: result.estimatedWait,
-      },
-    });
   });
 
   // POST /api/v1/queues/:queueId/call-next - Concurrency-safe Call Next
@@ -243,6 +267,18 @@ export default async function queueRoutes(fastify, options) {
         if (!nextCustomer) {
           return null;
         }
+
+        // Transition any current CALLED or SERVING customer in this queue to SERVED
+        await tx.queueEntry.updateMany({
+          where: {
+            queueId,
+            status: { in: ['CALLED', 'SERVING'] },
+          },
+          data: {
+            status: 'SERVED',
+            servedAt: new Date(),
+          },
+        });
 
         // Atomically set to CALLED
         const called = await tx.queueEntry.update({

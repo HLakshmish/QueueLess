@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Search, MapPin, Clock, Users, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search, MapPin, Clock, Users, ArrowRight, CheckCircle2, AlertCircle, Building2, Sparkles } from 'lucide-react';
 
-export default function ExploreQueues({ onTicketIssued }) {
+export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
   const { user } = useAuth();
   const [businesses, setBusinesses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +61,55 @@ export default function ExploreQueues({ onTicketIssued }) {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
+      {/* Join Us as Business Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, #ede9fe 0%, #ffffff 50%, #f0fdf4 100%)',
+        border: '1px solid #c7d2fe',
+        borderRadius: 16,
+        padding: '16px 24px',
+        marginBottom: 32,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 4px 15px rgba(99, 102, 241, 0.08)',
+        flexWrap: 'wrap',
+        gap: 16
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            background: 'var(--accent-gradient)',
+            color: '#fff',
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+          }}>
+            <Building2 size={22} />
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1e1b4b' }}>
+              Run a Clinic, Salon, or Service Desk?
+            </div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Digitize customer queues, eliminate crowded lobbies, and scale across branches.
+            </div>
+          </div>
+        </div>
+
+        <button 
+          onClick={onJoinBusiness}
+          className="btn-primary"
+          style={{ padding: '9px 18px', fontSize: '0.88rem', whiteSpace: 'nowrap' }}
+        >
+          <Sparkles size={15} /> Join Us as Business <ArrowRight size={15} />
+        </button>
+      </div>
+
       {/* Hero Header */}
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <h1 style={{ fontSize: '2.5rem', marginBottom: 12 }}>
@@ -266,6 +314,30 @@ export default function ExploreQueues({ onTicketIssued }) {
           </div>
         </div>
       )}
+
+      {/* Bottom Join Us Call to Action */}
+      <div className="glass-panel" style={{
+        marginTop: 48,
+        padding: '36px 32px',
+        textAlign: 'center',
+        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        border: '1px solid #e2e8f0'
+      }}>
+        <div style={{ display: 'inline-flex', padding: 8, borderRadius: 12, background: '#ede9fe', color: '#4f46e5', marginBottom: 12 }}>
+          <Sparkles size={24} />
+        </div>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Ready to Transform Your Customer Experience?</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: 560, margin: '8px auto 20px' }}>
+          Choose from our flexible subscription plans, set up your branches and services in minutes, and manage queues in real-time.
+        </p>
+        <button 
+          onClick={onJoinBusiness}
+          className="btn-primary"
+          style={{ padding: '12px 28px', fontSize: '0.95rem' }}
+        >
+          Explore Subscription Plans & Register <ArrowRight size={16} />
+        </button>
+      </div>
     </div>
   );
 }

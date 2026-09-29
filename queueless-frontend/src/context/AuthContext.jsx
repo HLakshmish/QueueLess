@@ -53,6 +53,25 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const refreshUser = async (explicitToken = null) => {
+    if (explicitToken) {
+      localStorage.setItem('queueless_token', explicitToken);
+    }
+    const token = localStorage.getItem('queueless_token');
+    if (token) {
+      try {
+        const res = await api.getMe();
+        if (res.success && res.data) {
+          setUser(res.data);
+          return res.data;
+        }
+      } catch (err) {
+        console.error('Failed to reload user session:', err);
+      }
+    }
+    return null;
+  };
+
   // Demo 1-click login switch
   const quickLogin = async (roleType) => {
     let email = '';
@@ -83,6 +102,7 @@ export function AuthProvider({ children }) {
         register,
         logout,
         quickLogin,
+        refreshUser,
       }}
     >
       {children}

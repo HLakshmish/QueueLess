@@ -63,7 +63,7 @@ export default async function businessRoutes(fastify, options) {
                   where: { status: { in: ['OPEN', 'PAUSED'] } },
                   include: {
                     entries: {
-                      where: { status: { in: ['WAITING', 'CALLED', 'SERVING'] } },
+                      where: { status: { in: ['WAITING', 'CHECKED_IN', 'CALLED', 'SERVING', 'SKIPPED'] } },
                       orderBy: { queueNumber: 'asc' },
                     },
                   },
@@ -85,21 +85,52 @@ export default async function businessRoutes(fastify, options) {
     return reply.send({ success: true, data: business });
   });
 
-  // POST /api/v1/businesses - Create business
+  // POST /api/v1/businesses - Create business (allows CUSTOMER to upgrade to BUSINESS_USER)
   fastify.post(
     '/',
-    { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
+    { preHandler: [fastify.authenticate, fastify.authorizeRoles('CUSTOMER', 'BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
-      const { name, description, category, phone, email, initialBranchName, address, city } = request.body;
+      const { name, description, category, phone, email, initialBranchName, address, city, planId } = request.body || {};
 
       if (!name || !category) {
         return reply.code(400).send({ success: false, error: 'Business name and category are required' });
       }
 
-      // Default Trial Plan
-      let trialPlan = await prisma.subscriptionPlan.findFirst({ where: { name: 'Trial' } });
-      if (!trialPlan) {
-        trialPlan = await prisma.subscriptionPlan.findFirst();
+      // Upgrade customer to BUSINESS_USER if registering a business
+      let updatedUserRole = request.user.role;
+      if (request.user.role === 'CUSTOMER') {
+        await prisma.user.update({
+          where: { id: request.user.id },
+          data: { role: 'BUSINESS_USER' },
+        });
+        updatedUserRole = 'BUSINESS_USER';
+      }
+
+      // Determine Plan
+      let chosenPlan = null;
+      if (planId) {
+        chosenPlan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
+      }
+
+      if (!chosenPlan) {
+        chosenPlan = await prisma.subscriptionPlan.findFirst({ where: { name: 'Trial' } }) 
+          || await prisma.subscriptionPlan.findFirst();
+      }
+
+      const isPaid = chosenPlan && chosenPlan.priceMonthly > 0;
+      const subStatus = isPaid ? 'ACTIVE' : 'TRIAL';
+      const durationDays = isPaid ? 30 : 14;
+
+      // Default initial service name based on category
+      let initialServiceName = 'General Consultation';
+      if (category.toLowerCase().includes('salon') || category.toLowerCase().includes('spa')) {
+        initialServiceName = 'Styling & Care Desk';
+      } else if (category.toLowerCase().includes('restaurant') || category.toLowerCase().includes('food')) {
+        initialServiceName = 'Dining & Order Queue';
+      } else if (category.toLowerCase().includes('bank')) {
+        initialServiceName = 'Teller & Accounts Desk';
+      } else if (category.toLowerCase().includes('auto')) {
+        initialServiceName = 'Vehicle Service Desk';
       }
 
       const business = await prisma.business.create({
@@ -107,8 +138,8 @@ export default async function businessRoutes(fastify, options) {
           name,
           description,
           category,
-          phone,
-          email,
+          phone: phone || request.user.phone,
+          email: email || request.user.email,
           status: 'ACTIVE',
           members: {
             create: {
@@ -117,30 +148,77 @@ export default async function businessRoutes(fastify, options) {
               permissions: ['QUEUE_MANAGE', 'SERVICE_MANAGE', 'ANALYTICS_VIEW', 'SUBSCRIPTION_MANAGE'],
             },
           },
-          branches: initialBranchName ? {
+          branches: {
             create: {
-              name: initialBranchName,
-              address: address || 'Main Branch',
-              city: city || 'Local',
+              name: initialBranchName || 'Main Branch',
+              address: address || 'Headquarters',
+              city: city || 'Bengaluru',
+              services: {
+                create: {
+                  name: initialServiceName,
+                  description: 'Primary customer service queue',
+                  avgDurationMinutes: 15,
+                  isActive: true,
+                  queues: {
+                    create: {
+                      title: "Today's Live Queue",
+                      status: 'OPEN',
+                      currentNumber: 0,
+                      maxCapacity: 100,
+                    },
+                  },
+                },
+              },
             },
-          } : undefined,
-          subscription: trialPlan ? {
+          },
+          subscription: chosenPlan ? {
             create: {
-              planId: trialPlan.id,
-              status: 'TRIAL',
+              planId: chosenPlan.id,
+              status: subStatus,
               startDate: new Date(),
-              endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
+              endDate: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
             },
           } : undefined,
         },
         include: {
-          branches: true,
+          branches: {
+            include: {
+              services: {
+                include: {
+                  queues: true,
+                },
+              },
+            },
+          },
           members: true,
           subscription: { include: { plan: true } },
         },
       });
 
-      return reply.code(201).send({ success: true, data: business });
+      // Record simulated payment if paid plan
+      if (isPaid) {
+        await prisma.payment.create({
+          data: {
+            businessId: business.id,
+            amount: chosenPlan.priceMonthly,
+            status: 'COMPLETED',
+            referenceId: `TXN-${Date.now()}`,
+          },
+        });
+      }
+
+      // Generate updated JWT token reflecting BUSINESS_USER role
+      const newToken = fastify.jwt.sign({
+        id: request.user.id,
+        email: request.user.email,
+        role: updatedUserRole,
+      });
+
+      return reply.code(201).send({
+        success: true,
+        data: business,
+        token: newToken,
+      });
     }
   );
 

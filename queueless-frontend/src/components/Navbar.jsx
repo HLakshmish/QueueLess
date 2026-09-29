@@ -85,6 +85,20 @@ export default function Navbar({ currentView, setCurrentView }) {
               >
                 <Clock size={16} /> History
               </button>
+              <button 
+                onClick={() => setCurrentView('join-business')}
+                className={currentView === 'join-business' ? 'btn-primary' : 'btn-secondary'}
+                style={{ 
+                  padding: '8px 14px', 
+                  fontSize: '0.88rem',
+                  borderColor: currentView === 'join-business' ? 'transparent' : '#c7d2fe',
+                  color: currentView === 'join-business' ? '#fff' : '#4f46e5',
+                  background: currentView === 'join-business' ? 'var(--accent-gradient)' : '#ede9fe',
+                  fontWeight: 700
+                }}
+              >
+                <Sparkles size={15} /> Join as Business
+              </button>
             </>
           )}
 

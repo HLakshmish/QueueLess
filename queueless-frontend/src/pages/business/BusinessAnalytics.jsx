@@ -86,30 +86,30 @@ export default function BusinessAnalytics() {
           Hourly queue volume and staff desk processing rate.
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, height: 180, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10 }}>
-          {[
-            { hour: '09:00', count: 4, height: '35%' },
-            { hour: '10:00', count: 12, height: '70%' },
-            { hour: '11:00', count: 18, height: '95%' },
-            { hour: '12:00', count: 14, height: '80%' },
-            { hour: '13:00', count: 6, height: '40%' },
-            { hour: '14:00', count: 5, height: '30%' },
-            { hour: '15:00', count: 9, height: '55%' },
-            { hour: '16:00', count: 15, height: '85%' },
-            { hour: '17:00', count: 11, height: '65%' },
-          ].map((bar, i) => (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-              <span style={{ fontSize: '0.75rem', color: '#4f46e5', fontWeight: 700, marginBottom: 4 }}>{bar.count}</span>
-              <div style={{
-                width: '100%',
-                maxWidth: 40,
-                height: bar.height,
-                background: 'linear-gradient(180deg, #4f46e5 0%, #c7d2fe 100%)',
-                borderRadius: '6px 6px 0 0'
-              }} />
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: 8 }}>{bar.hour}</span>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 180, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10, overflowX: 'auto' }}>
+          {(() => {
+            const dist = stats?.hourlyDistribution || Array(24).fill(0);
+            const maxVal = Math.max(...dist, 1);
+            const displayHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+            return displayHours.map((h) => {
+              const count = dist[h] || 0;
+              const heightPct = Math.max(10, Math.round((count / maxVal) * 100));
+              const label = `${String(h).padStart(2, '0')}:00`;
+              return (
+                <div key={h} style={{ flex: 1, minWidth: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#4f46e5', fontWeight: 700, marginBottom: 4 }}>{count}</span>
+                  <div style={{
+                    width: '100%',
+                    maxWidth: 32,
+                    height: `${heightPct}%`,
+                    background: 'linear-gradient(180deg, #4f46e5 0%, #c7d2fe 100%)',
+                    borderRadius: '6px 6px 0 0'
+                  }} />
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: 8 }}>{label}</span>
+                </div>
+              );
+            });
+          })()}
         </div>
       </div>
     </div>

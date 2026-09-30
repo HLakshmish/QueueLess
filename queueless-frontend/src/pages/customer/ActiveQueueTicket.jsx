@@ -167,16 +167,16 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
         }} />
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px dashed var(--border-subtle)', paddingBottom: 20 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Building size={14} color="#6366f1" />
-              <span>{entry.queue?.service?.branch?.business?.name || 'Apex Health Clinic'}</span>
+              <Building size={14} color="#007bff" />
+              <span style={{ fontWeight: 600 }}>{entry.queue?.service?.branch?.business?.name || 'Apex Health Clinic'}</span>
             </div>
-            <h2 style={{ fontSize: '1.4rem', marginTop: 4 }}>
+            <h2 style={{ fontSize: '1.5rem', marginTop: 4 }}>
               {entry.queue?.service?.name || 'General Consultation'}
             </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-dim)', fontSize: '0.82rem', marginTop: 4 }}>
               <MapPin size={12} />
               <span>{entry.queue?.service?.branch?.name}, {entry.queue?.service?.branch?.city}</span>
             </div>
@@ -189,53 +189,55 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
           </div>
         </div>
 
-        {/* Center: Hero Queue Number */}
-        <div style={{ textAlign: 'center', padding: '36px 0' }}>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+        {/* Center: Hero Queue Number with Ticket Notch Styling */}
+        <div style={{ textAlign: 'center', padding: '36px 0', background: 'radial-gradient(ellipse at center, rgba(37,99,235,0.05) 0%, transparent 70%)' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
             Your Token Number
           </div>
           <div className="queue-number-hero animate-float">
-            #{String(entry.queueNumber).padStart(2, '0')}
+            #Q-{String(entry.queueNumber).padStart(3, '0')}
           </div>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 8 }}>
-            Passenger / Guest: <strong style={{ color: 'var(--text-main)' }}>{entry.customerName}</strong>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginTop: 8 }}>
+            Ticket Holder: <strong style={{ color: 'var(--text-main)', fontWeight: 700 }}>{entry.customerName}</strong>
           </div>
         </div>
 
         {/* Live Wait Info Grid */}
-        <div className="grid-cols-2" style={{ marginBottom: 30 }}>
+        <div className="grid-cols-2" style={{ marginBottom: 24 }}>
           <div style={{
-            background: '#f8fafc',
+            background: '#ffffff',
             border: '1px solid var(--border-subtle)',
-            borderRadius: 14,
+            borderRadius: 16,
             padding: 20,
-            textAlign: 'center'
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
               <Users size={24} color="#f59e0b" />
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#d97706' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#d97706' }}>
               {entry.peopleAhead || 0}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
               People Ahead of You
             </div>
           </div>
 
           <div style={{
-            background: '#f8fafc',
+            background: '#ffffff',
             border: '1px solid var(--border-subtle)',
-            borderRadius: 14,
+            borderRadius: 16,
             padding: 20,
-            textAlign: 'center'
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
               <Clock size={24} color="#10b981" />
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#059669' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0d9488' }}>
               ~{entry.estimatedWaitMinutes || 0}m
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
               Estimated Waiting Time
             </div>
           </div>

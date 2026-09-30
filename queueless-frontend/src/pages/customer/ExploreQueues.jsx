@@ -60,8 +60,24 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
     }
   };
 
+  const categories = [
+    'All',
+    'Healthcare & Clinic',
+    'Salon & Spa',
+    'Restaurant & Food',
+    'Banking & Financial',
+    'Government Office',
+    'Diagnostic Centre',
+    'Vehicle Service',
+  ];
+  const [activeCategory, setActiveCategory] = useState('All');
+
+  const filteredBusinesses = activeCategory === 'All' 
+    ? businesses 
+    : businesses.filter(b => b.category?.toLowerCase().includes(activeCategory.toLowerCase()));
+
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
+    <div style={{ maxWidth: 1240, margin: '0 auto', padding: '36px 20px 60px' }}>
       {/* Join Us as Business Banner */}
       <div style={{
         background: 'linear-gradient(135deg, #ede9fe 0%, #ffffff 50%, #f0fdf4 100%)',
@@ -109,25 +125,24 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
           <Sparkles size={15} /> Join Us as Business <ArrowRight size={15} />
         </button>
       </div>
-
       {/* Hero Header */}
-      <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <h1 style={{ fontSize: '2.5rem', marginBottom: 12 }}>
-          Never Wait in Line Again. <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Queue Remotely.</span>
+      <div style={{ textAlign: 'center', marginBottom: 36 }}>
+        <h1 style={{ fontSize: '2.8rem', marginBottom: 12, letterSpacing: '-0.03em' }}>
+          Never Wait in Line. <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Join Queues Remotely.</span>
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: 650, margin: '0 auto' }}>
-          Discover top clinics, salons, diagnostic centers, and service desks. View live waiting times and get notified when your turn arrives.
+        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: 680, margin: '0 auto' }}>
+          Real-time token management for clinics, salons, restaurants, banks, government desks, and diagnostic centers.
         </p>
 
         {/* Search Bar */}
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: 12, maxWidth: 600, margin: '28px auto 0' }}>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: 12, maxWidth: 640, margin: '28px auto 0' }}>
           <div style={{ position: 'relative', flex: 1 }}>
             <Search size={18} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
             <input 
               type="text"
               className="form-input"
-              style={{ paddingLeft: 44 }}
-              placeholder="Search by clinic name, doctor, salon, category..."
+              style={{ paddingLeft: 44, borderRadius: 'var(--radius-lg)' }}
+              placeholder="Search by clinic, doctor, salon, location..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -136,6 +151,28 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
             Search
           </button>
         </form>
+
+        {/* Category Pills */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 20 }}>
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                background: activeCategory === cat ? 'var(--accent-blue)' : '#ffffff',
+                color: activeCategory === cat ? '#ffffff' : 'var(--text-muted)',
+                border: `1px solid ${activeCategory === cat ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
+                boxShadow: activeCategory === cat ? '0 4px 12px rgba(0, 123, 255, 0.3)' : '0 1px 3px rgba(0,0,0,0.02)',
+              }}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       {message && (
@@ -148,7 +185,7 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
           gap: 12,
           background: message.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
           border: `1px solid ${message.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-          color: message.type === 'success' ? '#34d399' : '#fb7185',
+          color: message.type === 'success' ? '#0d9488' : '#fb7185',
         }}>
           {message.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
           <span>{message.text}</span>
@@ -157,15 +194,15 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
 
       {/* Businesses Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Loading active businesses...</div>
-      ) : businesses.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Loading active business queues...</div>
+      ) : filteredBusinesses.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60 }} className="glass-panel">
           <h3>No active businesses found</h3>
-          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Try searching for "Apex" or reset search.</p>
+          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Try clearing filters or search term.</p>
         </div>
       ) : (
         <div className="grid-cols-2">
-          {businesses.map((biz) => (
+          {filteredBusinesses.map((biz) => (
             <div key={biz.id} className="glass-panel" style={{ padding: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <div>
@@ -180,7 +217,7 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
                 {biz.branches?.map((branch) => (
                   <div key={branch.id} style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 16, marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-                      <MapPin size={14} color="#6366f1" />
+                      <MapPin size={14} color="#007bff" />
                       <span style={{ fontWeight: 600 }}>{branch.name} — {branch.city}</span>
                     </div>
 

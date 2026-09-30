@@ -1,6 +1,28 @@
 export default async function queueRoutes(fastify, options) {
   const { prisma } = fastify;
 
+  // Helper to verify business ownership for a queue or service
+  async function verifyQueueBusinessAccess(request, reply, businessId) {
+    if (request.user.role === 'APPLICATION_MANAGER') return true;
+    if (request.user.role !== 'BUSINESS_USER') {
+      reply.code(403).send({ success: false, error: 'Requires BUSINESS_USER role' });
+      return false;
+    }
+    const membership = await prisma.businessMember.findUnique({
+      where: {
+        userId_businessId: {
+          userId: request.user.id,
+          businessId,
+        },
+      },
+    });
+    if (!membership) {
+      reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this business' });
+      return false;
+    }
+    return true;
+  }
+
   // POST /api/v1/services/:serviceId/queues - Open new queue for service
   fastify.post(
     '/services/:serviceId/queues',
@@ -17,6 +39,9 @@ export default async function queueRoutes(fastify, options) {
       if (!service) {
         return reply.code(404).send({ success: false, error: 'Service not found' });
       }
+
+      const isAllowed = await verifyQueueBusinessAccess(request, reply, service.branch.businessId);
+      if (!isAllowed) return;
 
       // Create new queue
       const queue = await prisma.queue.create({
@@ -137,7 +162,7 @@ export default async function queueRoutes(fastify, options) {
           throw new Error('QUEUE_NOT_OPEN');
         }
 
-        // Prevent duplicate active queue entries ONLY for registered customers joining for themselves
+        // Prevent duplicate active queue entries ONLY for registered customers joining for themselves or by phone
         if (userId) {
           const existingEntry = await tx.queueEntry.findFirst({
             where: {
@@ -147,6 +172,17 @@ export default async function queueRoutes(fastify, options) {
             },
           });
           if (existingEntry) {
+            throw new Error('ALREADY_IN_QUEUE');
+          }
+        } else if (phone) {
+          const existingGuest = await tx.queueEntry.findFirst({
+            where: {
+              queueId,
+              customerPhone: phone,
+              status: { in: ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'] },
+            },
+          });
+          if (existingGuest) {
             throw new Error('ALREADY_IN_QUEUE');
           }
         }
@@ -250,16 +286,27 @@ export default async function queueRoutes(fastify, options) {
     async (request, reply) => {
       const { queueId } = request.params;
 
+      const queue = await prisma.queue.findUnique({
+        where: { id: queueId },
+        include: { service: { include: { branch: true } } },
+      });
+
+      if (!queue) {
+        return reply.code(404).send({ success: false, error: 'Queue not found' });
+      }
+
+      const isAllowed = await verifyQueueBusinessAccess(request, reply, queue.service.branch.businessId);
+      if (!isAllowed) return;
+
       // Safe transactional lock and atomic update
       const updatedEntry = await prisma.$transaction(async (tx) => {
-        // Find next eligible waiting or checked-in customer
+        // Find next eligible waiting or checked-in customer in strict queueNumber ascending order
         const nextCustomer = await tx.queueEntry.findFirst({
           where: {
             queueId,
             status: { in: ['CHECKED_IN', 'WAITING'] },
           },
           orderBy: [
-            { status: 'desc' }, // CHECKED_IN first
             { queueNumber: 'asc' },
           ],
         });
@@ -305,6 +352,18 @@ export default async function queueRoutes(fastify, options) {
           },
         });
 
+        // Create persistent notification for user if registered
+        if (called.userId) {
+          await tx.notification.create({
+            data: {
+              userId: called.userId,
+              title: "IT'S YOUR TURN!",
+              message: `Your token #${called.queueNumber} has been called. Please proceed to the service desk immediately.`,
+              type: 'QUEUE_CALLED',
+            },
+          });
+        }
+
         return called;
       });
 
@@ -335,6 +394,15 @@ export default async function queueRoutes(fastify, options) {
     { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
       const { queueId } = request.params;
+      const queue = await prisma.queue.findUnique({
+        where: { id: queueId },
+        include: { service: { include: { branch: true } } },
+      });
+      if (!queue) return reply.code(404).send({ success: false, error: 'Queue not found' });
+
+      const isAllowed = await verifyQueueBusinessAccess(request, reply, queue.service.branch.businessId);
+      if (!isAllowed) return;
+
       const updated = await prisma.queue.update({
         where: { id: queueId },
         data: { status: 'PAUSED' },
@@ -354,6 +422,15 @@ export default async function queueRoutes(fastify, options) {
     { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
       const { queueId } = request.params;
+      const queue = await prisma.queue.findUnique({
+        where: { id: queueId },
+        include: { service: { include: { branch: true } } },
+      });
+      if (!queue) return reply.code(404).send({ success: false, error: 'Queue not found' });
+
+      const isAllowed = await verifyQueueBusinessAccess(request, reply, queue.service.branch.businessId);
+      if (!isAllowed) return;
+
       const updated = await prisma.queue.update({
         where: { id: queueId },
         data: { status: 'OPEN' },
@@ -373,6 +450,15 @@ export default async function queueRoutes(fastify, options) {
     { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
       const { queueId } = request.params;
+      const queue = await prisma.queue.findUnique({
+        where: { id: queueId },
+        include: { service: { include: { branch: true } } },
+      });
+      if (!queue) return reply.code(404).send({ success: false, error: 'Queue not found' });
+
+      const isAllowed = await verifyQueueBusinessAccess(request, reply, queue.service.branch.businessId);
+      if (!isAllowed) return;
+
       const updated = await prisma.queue.update({
         where: { id: queueId },
         data: { status: 'CLOSED' },

@@ -92,4 +92,8 @@ export const api = {
   getAdminSubscriptions: () => apiRequest('/admin/subscriptions'),
   updateAdminSubscription: (id, data) => apiRequest(`/admin/subscriptions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   assignAdminSubscription: (data) => apiRequest('/admin/subscriptions/assign', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Notifications
+  getNotifications: () => apiRequest('/notifications'),
+  markNotificationRead: (id) => apiRequest(`/notifications/${id}/read`, { method: 'PATCH' }),
 };

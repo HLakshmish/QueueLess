@@ -257,24 +257,45 @@ export default function BusinessDashboard() {
     .sort((a, b) => new Date(b.calledAt || 0) - new Date(a.calledAt || 0))[0] || null;
   const waitingEntries = entries.filter((e) => ['WAITING', 'CHECKED_IN'].includes(e.status));
   const skippedEntries = entries.filter((e) => e.status === 'SKIPPED');
+  const totalActive = waitingEntries.length + (servingCustomer ? 1 : 0);
+  const avgWait = waitingEntries.length * (selectedQueue?.service?.avgDurationMinutes || 15);
+
+  // Derive real-time activity log feed from entries and events
+  const activityLogs = [
+    ...(servingCustomer ? [{
+      time: servingCustomer.calledAt ? new Date(servingCustomer.calledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
+      text: `${servingCustomer.customerName} called to desk (Token #Q-${String(servingCustomer.queueNumber).padStart(3, '0')})`,
+      type: 'called'
+    }] : []),
+    ...entries.filter(e => e.checkedInAt).map(e => ({
+      time: new Date(e.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `${e.customerName} checked in (Token #Q-${String(e.queueNumber).padStart(3, '0')})`,
+      type: 'checkin'
+    })),
+    ...entries.filter(e => e.servedAt).map(e => ({
+      time: new Date(e.servedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `${e.customerName} marked served`,
+      type: 'served'
+    })),
+  ].slice(0, 6);
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '32px 20px' }}>
+    <div style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 20px' }}>
       {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
             {activeBusiness.name}
           </div>
-          <h1 style={{ fontSize: '2rem' }}>Live Queue Operator Desk</h1>
+          <h1 style={{ fontSize: '1.8rem', marginTop: 2 }}>Live Queue Dashboard</h1>
         </div>
 
-        {/* Queue Selector & Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Queue Selector & Desk Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {queues.length > 1 && (
             <select 
               className="form-input" 
-              style={{ width: 'auto' }}
+              style={{ width: 'auto', padding: '8px 14px', fontSize: '0.88rem' }}
               value={selectedQueue?.id}
               onChange={(e) => {
                 const found = queues.find(q => q.id === e.target.value);
@@ -300,12 +321,13 @@ export default function BusinessDashboard() {
               }
               setShowWalkInModal(true);
             }} 
-            className="btn-secondary"
+            className="btn-primary"
+            style={{ padding: '8px 14px', fontSize: '0.88rem' }}
           >
             <UserPlus size={16} /> Add Walk-in
           </button>
 
-          <button onClick={handleTogglePause} className="btn-secondary" disabled={!selectedQueue?.id}>
+          <button onClick={handleTogglePause} className="btn-secondary" style={{ padding: '8px 14px', fontSize: '0.88rem' }} disabled={!selectedQueue?.id}>
             {selectedQueue?.status === 'OPEN' ? <><Pause size={16} /> Pause Queue</> : <><Play size={16} /> Resume Queue</>}
           </button>
         </div>
@@ -350,36 +372,60 @@ export default function BusinessDashboard() {
         </div>
       )}
 
-      {/* Main Grid: Left Control Console & Right Waiting Roster */}
-      <div className="grid-cols-3" style={{ gridTemplateColumns: '1fr 2fr', gap: 24 }}>
-        {/* Left: Active Desk Controller */}
-        <div>
-          {/* Hero Call Next Action Card */}
-          <div className="glass-panel-glow" style={{ padding: 28, textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-              Now Serving / Called
+      {/* Main Layout Grid matching Reference Mockup */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.2fr) minmax(0, 1fr)', gap: 24 }}>
+        {/* Left / Main Section */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          
+          {/* Queue Overview Summary Cards */}
+          <div className="glass-panel" style={{ padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: '1.25rem' }}>Queue Overview</h3>
+              <span className={`badge ${selectedQueue?.status === 'OPEN' ? 'badge-serving' : 'badge-waiting'}`}>
+                {selectedQueue?.status}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Live Active Customers</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--text-main)', marginTop: 4 }}>{totalActive}</div>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Avg. Wait Time</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#007bff', marginTop: 4 }}>{avgWait}m</div>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Service Desk</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 10 }}>
+                  {selectedQueue?.service?.name || 'Main Desk'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Hero Now Serving Console */}
+          <div className="glass-panel-glow" style={{ padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 8 }}>
+              Currently Called / Serving at Desk
             </div>
 
             {servingCustomer ? (
-              <div style={{ padding: '16px 0' }}>
+              <div>
                 <div className="queue-number-hero">
-                  #{String(servingCustomer.queueNumber).padStart(2, '0')}
+                  #Q-{String(servingCustomer.queueNumber).padStart(3, '0')}
                 </div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: 8 }}>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: 6 }}>
                   {servingCustomer.customerName}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-                  <span className={`badge badge-${servingCustomer.status.toLowerCase()}`}>
-                    {servingCustomer.status}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 16 }}>
                   <button 
                     onClick={() => handleServe(servingCustomer.id)} 
                     disabled={actionLoading}
                     className="btn-success"
-                    style={{ flex: 1 }}
+                    style={{ padding: '8px 20px', fontSize: '0.9rem' }}
                   >
                     <Check size={16} /> Mark Served
                   </button>
@@ -387,156 +433,136 @@ export default function BusinessDashboard() {
                     onClick={() => handleSkip(servingCustomer.id)} 
                     disabled={actionLoading}
                     className="btn-warning"
+                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                   >
                     <FastForward size={16} /> Skip
                   </button>
                 </div>
               </div>
             ) : (
-              <div style={{ padding: '24px 0', color: 'var(--text-dim)' }}>
-                <div style={{ fontSize: '3rem', fontWeight: 800 }}>--</div>
-                <p>No customer currently called to desk</p>
+              <div style={{ padding: '16px 0', color: 'var(--text-dim)' }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>--</div>
+                <p style={{ fontSize: '0.9rem' }}>No customer currently called to desk</p>
               </div>
             )}
 
-            {/* Big Action: Call Next Button */}
-            <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--border-subtle)' }}>
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
               <button 
                 onClick={handleCallNext} 
                 disabled={actionLoading || waitingEntries.length === 0}
                 className="btn-primary" 
-                style={{ width: '100%', justifyContent: 'center', padding: '14px 20px', fontSize: '1.1rem' }}
+                style={{ width: '100%', justifyContent: 'center', padding: '12px 20px', fontSize: '1rem' }}
               >
-                <PhoneCall size={20} />
-                Call Next Customer ({waitingEntries.length})
+                <PhoneCall size={18} />
+                Call Next Customer ({waitingEntries.length} waiting)
               </button>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 8 }}>
-                Concurrency safe: PostgreSQL atomic state transaction
-              </div>
             </div>
           </div>
 
-          {/* Quick Stats Widget */}
-          <div className="glass-panel" style={{ padding: 20 }}>
-            <h4 style={{ fontSize: '1rem', marginBottom: 12 }}>Queue Overview</h4>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Status</span>
-              <span className={`badge ${selectedQueue?.status === 'OPEN' ? 'badge-serving' : 'badge-waiting'}`}>
-                {selectedQueue?.status}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Waiting in Line</span>
-              <strong>{waitingEntries.length}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Estimated Wait Time</span>
-              <strong>~{waitingEntries.length * (selectedQueue?.service?.avgDurationMinutes || 15)} mins</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Waiting Roster */}
-        <div>
+          {/* Waiting List Table matching Reference Mockup */}
           <div className="glass-panel" style={{ padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: '1.3rem' }}>
-                Waiting Customers ({waitingEntries.length})
-              </h3>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Real-time WebSocket Live Feed
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: '1.2rem' }}>Waiting List ({waitingEntries.length})</h3>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Live Stream Active
               </div>
             </div>
 
             {waitingEntries.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-dim)' }}>
-                <Users size={36} style={{ marginBottom: 12, opacity: 0.5 }} />
-                <p>No waiting customers in the queue right now.</p>
-                <button onClick={() => setShowWalkInModal(true)} className="btn-secondary" style={{ marginTop: 12 }}>
-                  Add First Walk-In
-                </button>
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>
+                <Users size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
+                <p style={{ fontSize: '0.9rem' }}>No waiting customers in the queue.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {waitingEntries.map((entry, index) => (
-                  <div 
-                    key={entry.id}
-                    style={{
-                      background: '#f8fafc',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 12,
-                      padding: '14px 18px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#4f46e5', minWidth: 44 }}>
-                        #{String(entry.queueNumber).padStart(2, '0')}
-                      </span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '1rem' }}>{entry.customerName}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: 12 }}>
-                          <span>Wait: ~{index * (selectedQueue?.service?.avgDurationMinutes || 15)}m</span>
-                          {entry.notes && <span>• {entry.notes}</span>}
+              <table className="waiting-table">
+                <thead>
+                  <tr>
+                    <th>Token ID</th>
+                    <th>Customer Name</th>
+                    <th>Service</th>
+                    <th>Est. Wait</th>
+                    <th>Status / Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {waitingEntries.map((entry, idx) => (
+                    <tr key={entry.id}>
+                      <td style={{ fontWeight: 800, color: '#007bff' }}>
+                        #Q-{String(entry.queueNumber).padStart(3, '0')}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>
+                        {entry.customerName}
+                      </td>
+                      <td style={{ color: 'var(--text-muted)' }}>
+                        {selectedQueue?.service?.name || 'General'}
+                      </td>
+                      <td style={{ color: 'var(--text-muted)' }}>
+                        ~{idx * (selectedQueue?.service?.avgDurationMinutes || 15)}m
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className={`badge badge-${entry.status.toLowerCase().replace('_', '-')}`}>
+                            {entry.status}
+                          </span>
+                          <button 
+                            onClick={() => handleSkip(entry.id)} 
+                            className="btn-secondary"
+                            style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                          >
+                            Skip
+                          </button>
                         </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className={`badge badge-${entry.status.toLowerCase().replace('_', '-')}`}>
-                        {entry.status}
-                      </span>
-                      <button 
-                        onClick={() => handleSkip(entry.id)} 
-                        className="btn-secondary"
-                        style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                        title="Skip this customer"
-                      >
-                        Skip
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
 
             {/* Skipped Section */}
             {skippedEntries.length > 0 && (
-              <div style={{ marginTop: 32, borderTop: '1px solid var(--border-subtle)', paddingTop: 20 }}>
-                <h4 style={{ fontSize: '1rem', color: '#b45309', marginBottom: 12 }}>
-                  Skipped Customers ({skippedEntries.length})
-                </h4>
+              <div style={{ marginTop: 24, borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
+                <h4 style={{ fontSize: '0.9rem', color: '#d97706', marginBottom: 10 }}>Skipped Customers ({skippedEntries.length})</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {skippedEntries.map((entry) => (
-                    <div 
-                      key={entry.id}
-                      style={{
-                        background: '#fffbeb',
-                        border: '1px solid #fde68a',
-                        borderRadius: 10,
-                        padding: '10px 16px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontWeight: 800, color: '#b45309' }}>#{entry.queueNumber}</span>
-                        <span style={{ fontWeight: 600 }}>{entry.customerName}</span>
-                      </div>
-                      <button 
-                        onClick={() => handleRecall(entry.id)} 
-                        className="btn-warning"
-                        style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                      >
-                        <RotateCcw size={14} /> Recall
+                    <div key={entry.id} style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 700, color: '#b45309', fontSize: '0.85rem' }}>#Q-{String(entry.queueNumber).padStart(3, '0')} — {entry.customerName}</span>
+                      <button onClick={() => handleRecall(entry.id)} className="btn-warning" style={{ padding: '4px 10px', fontSize: '0.75rem' }}>
+                        <RotateCcw size={12} /> Recall
                       </button>
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* Right Panel: Real-Time Activity Log Feed matching Reference Mockup */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div className="glass-panel" style={{ padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: '1.15rem' }}>Real-Time Activity</h3>
+              <Clock size={16} color="var(--text-muted)" />
+            </div>
+
+            {activityLogs.length === 0 ? (
+              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textAlign: 'center', padding: '24px 0' }}>
+                Activity stream will update automatically as events occur.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {activityLogs.map((log, index) => (
+                  <div key={index} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 600, minWidth: 60 }}>
+                      {log.time}
+                    </span>
+                    <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '8px 12px', flex: 1 }}>
+                      <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{log.text}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

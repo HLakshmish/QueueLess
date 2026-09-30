@@ -1,6 +1,39 @@
 export default async function queueEntryRoutes(fastify, options) {
   const { prisma } = fastify;
 
+  // Helper to verify business membership for a queue entry
+  async function verifyEntryBusinessAccess(user, entryId) {
+    if (user.role === 'APPLICATION_MANAGER') return true;
+    if (user.role !== 'BUSINESS_USER') return false;
+
+    const entry = await prisma.queueEntry.findUnique({
+      where: { id: entryId },
+      include: {
+        queue: {
+          include: {
+            service: {
+              include: { branch: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!entry) return false;
+
+    const businessId = entry.queue.service.branch.businessId;
+    const membership = await prisma.businessMember.findUnique({
+      where: {
+        userId_businessId: {
+          userId: user.id,
+          businessId,
+        },
+      },
+    });
+
+    return !!membership;
+  }
+
   // Helper to re-calculate customer position and estimated wait
   async function getCustomerPosition(queueId, entryId, queueNumber) {
     const peopleAhead = await prisma.queueEntry.count({
@@ -73,6 +106,22 @@ export default async function queueEntryRoutes(fastify, options) {
       return reply.code(404).send({ success: false, error: 'Queue entry not found' });
     }
 
+    // Auth verification (customer or desk staff)
+    try {
+      await request.jwtVerify();
+      const user = request.user;
+      const isOwner = entry.userId === user.id;
+      const isStaff = await verifyEntryBusinessAccess(user, entryId);
+      if (!isOwner && !isStaff) {
+        return reply.code(403).send({ success: false, error: 'Forbidden' });
+      }
+    } catch (e) {
+      // Allow unauthenticated guest check-in if guest ticket (userId is null)
+      if (entry.userId !== null) {
+        return reply.code(401).send({ success: false, error: 'Unauthorized' });
+      }
+    }
+
     const updated = await prisma.queueEntry.update({
       where: { id: entryId },
       data: {
@@ -106,6 +155,11 @@ export default async function queueEntryRoutes(fastify, options) {
     { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
       const { entryId } = request.params;
+
+      const hasAccess = await verifyEntryBusinessAccess(request.user, entryId);
+      if (!hasAccess) {
+        return reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this business queue' });
+      }
 
       const entry = await prisma.queueEntry.findUnique({ where: { id: entryId } });
       if (!entry) {
@@ -147,6 +201,11 @@ export default async function queueEntryRoutes(fastify, options) {
     async (request, reply) => {
       const { entryId } = request.params;
 
+      const hasAccess = await verifyEntryBusinessAccess(request.user, entryId);
+      if (!hasAccess) {
+        return reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this business queue' });
+      }
+
       const entry = await prisma.queueEntry.findUnique({ where: { id: entryId } });
       if (!entry) {
         return reply.code(404).send({ success: false, error: 'Queue entry not found' });
@@ -186,6 +245,11 @@ export default async function queueEntryRoutes(fastify, options) {
     async (request, reply) => {
       const { entryId } = request.params;
 
+      const hasAccess = await verifyEntryBusinessAccess(request.user, entryId);
+      if (!hasAccess) {
+        return reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this business queue' });
+      }
+
       const entry = await prisma.queueEntry.findUnique({ where: { id: entryId } });
       if (!entry) {
         return reply.code(404).send({ success: false, error: 'Queue entry not found' });
@@ -220,6 +284,18 @@ export default async function queueEntryRoutes(fastify, options) {
         },
       });
 
+      // Persistent notification if registered user
+      if (entry.userId) {
+        await prisma.notification.create({
+          data: {
+            userId: entry.userId,
+            title: "RECALLED TO DESK!",
+            message: `Your token #${entry.queueNumber} has been recalled. Please proceed to the desk immediately.`,
+            type: 'QUEUE_CALLED',
+          },
+        });
+      }
+
       if (fastify.broadcastQueueUpdate) {
         fastify.broadcastQueueUpdate(entry.queueId, {
           type: 'CUSTOMER_CALLED',
@@ -238,6 +314,21 @@ export default async function queueEntryRoutes(fastify, options) {
     const entry = await prisma.queueEntry.findUnique({ where: { id: entryId } });
     if (!entry) {
       return reply.code(404).send({ success: false, error: 'Queue entry not found' });
+    }
+
+    // Auth verification (customer or desk staff)
+    try {
+      await request.jwtVerify();
+      const user = request.user;
+      const isOwner = entry.userId === user.id;
+      const isStaff = await verifyEntryBusinessAccess(user, entryId);
+      if (!isOwner && !isStaff) {
+        return reply.code(403).send({ success: false, error: 'Forbidden' });
+      }
+    } catch (e) {
+      if (entry.userId !== null) {
+        return reply.code(401).send({ success: false, error: 'Unauthorized' });
+      }
     }
 
     const updated = await prisma.queueEntry.update({

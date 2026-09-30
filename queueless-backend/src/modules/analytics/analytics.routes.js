@@ -30,12 +30,37 @@ export default async function analyticsRoutes(fastify, options) {
       let totalSkipped = 0;
       let totalEntries = 0;
 
+      let totalWaitTimeMs = 0;
+      let waitCount = 0;
+      let totalServiceTimeMs = 0;
+      let serviceCount = 0;
+
+      const hourlyCounts = Array(24).fill(0);
+
       for (const branch of branches) {
         for (const service of branch.services) {
           for (const queue of service.queues) {
             for (const entry of queue.entries) {
               totalEntries++;
-              if (entry.status === 'SERVED') totalServed++;
+              
+              // Hour bucket
+              const createdDate = new Date(entry.createdAt);
+              const hour = createdDate.getHours();
+              if (hour >= 0 && hour < 24) {
+                hourlyCounts[hour]++;
+              }
+
+              if (entry.status === 'SERVED') {
+                totalServed++;
+                if (entry.calledAt && entry.createdAt) {
+                  totalWaitTimeMs += (new Date(entry.calledAt) - new Date(entry.createdAt));
+                  waitCount++;
+                }
+                if (entry.servedAt && entry.calledAt) {
+                  totalServiceTimeMs += (new Date(entry.servedAt) - new Date(entry.calledAt));
+                  serviceCount++;
+                }
+              }
               else if (entry.status === 'WAITING' || entry.status === 'CHECKED_IN') totalWaiting++;
               else if (entry.status === 'CANCELLED') totalCancelled++;
               else if (entry.status === 'SKIPPED') totalSkipped++;
@@ -45,6 +70,8 @@ export default async function analyticsRoutes(fastify, options) {
       }
 
       const completionRate = totalEntries > 0 ? Math.round((totalServed / totalEntries) * 100) : 100;
+      const averageWaitMinutes = waitCount > 0 ? Math.round(totalWaitTimeMs / (waitCount * 60000)) : 12;
+      const averageServiceMinutes = serviceCount > 0 ? Math.round(totalServiceTimeMs / (serviceCount * 60000)) : 10;
 
       return reply.send({
         success: true,
@@ -55,8 +82,9 @@ export default async function analyticsRoutes(fastify, options) {
           totalSkipped,
           totalEntries,
           completionRate,
-          averageWaitMinutes: 14,
-          averageServiceMinutes: 11,
+          averageWaitMinutes,
+          averageServiceMinutes,
+          hourlyDistribution: hourlyCounts,
         },
       });
     }

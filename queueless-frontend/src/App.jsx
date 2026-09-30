@@ -22,6 +22,14 @@ function MainApp() {
   const { role, user, loading } = useAuth();
   const [currentView, setCurrentView] = useState('explore');
   const [activeTicketId, setActiveTicketId] = useState(null);
+  const [pendingQueue, setPendingQueue] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('queueless_pending_queue');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Sync default view when role changes
   useEffect(() => {
@@ -49,6 +57,29 @@ function MainApp() {
     setCurrentView('my-ticket');
   };
 
+  const handleRequireLogin = (queueData) => {
+    setPendingQueue(queueData);
+    try {
+      sessionStorage.setItem('queueless_pending_queue', JSON.stringify(queueData));
+    } catch {}
+    setCurrentView('login');
+  };
+
+  const handleRequireRegister = (queueData) => {
+    setPendingQueue(queueData);
+    try {
+      sessionStorage.setItem('queueless_pending_queue', JSON.stringify(queueData));
+    } catch {}
+    setCurrentView('register');
+  };
+
+  const handleClearPendingQueue = () => {
+    setPendingQueue(null);
+    try {
+      sessionStorage.removeItem('queueless_pending_queue');
+    } catch {}
+  };
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar currentView={currentView} setCurrentView={setCurrentView} />
@@ -59,6 +90,10 @@ function MainApp() {
           <ExploreQueues 
             onTicketIssued={handleTicketIssued} 
             onJoinBusiness={() => setCurrentView('join-business')} 
+            onRequireLogin={handleRequireLogin}
+            onRequireRegister={handleRequireRegister}
+            pendingJoinQueue={pendingQueue}
+            onClearPendingQueue={handleClearPendingQueue}
           />
         )}
 
@@ -95,6 +130,7 @@ function MainApp() {
         {/* Auth Views */}
         {currentView === 'login' && (
           <Login 
+            pendingQueue={pendingQueue}
             onRegisterClick={() => setCurrentView('register')} 
             onLoginSuccess={() => setCurrentView('explore')} 
           />
@@ -102,6 +138,7 @@ function MainApp() {
 
         {currentView === 'register' && (
           <Register 
+            pendingQueue={pendingQueue}
             onLoginClick={() => setCurrentView('login')} 
             onRegisterSuccess={() => setCurrentView('explore')} 
           />

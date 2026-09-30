@@ -3,11 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { 
   Clock, 
-  Sparkles, 
   ArrowRight, 
   Users, 
   Store, 
-  ShieldCheck, 
   Mail, 
   Lock, 
   Eye, 
@@ -22,8 +20,8 @@ import {
 } from 'lucide-react';
 import heroImg from '../../assets/login_hero.jpg';
 
-export default function Register({ onLoginClick, onRegisterSuccess }) {
-  const { register, quickLogin, refreshUser } = useAuth();
+export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess }) {
+  const { register, refreshUser } = useAuth();
   const [role, setRole] = useState('CUSTOMER'); // CUSTOMER or BUSINESS_USER
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -86,19 +84,6 @@ export default function Register({ onLoginClick, onRegisterSuccess }) {
       if (onRegisterSuccess) onRegisterSuccess();
     } catch (err) {
       setError(err.message || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async (roleType) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await quickLogin(roleType);
-      if (onRegisterSuccess) onRegisterSuccess();
-    } catch (err) {
-      setError(err.message || 'Demo login failed');
     } finally {
       setLoading(false);
     }
@@ -215,16 +200,36 @@ export default function Register({ onLoginClick, onRegisterSuccess }) {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Registration Form & Demo Sandbox */}
+        {/* RIGHT COLUMN: Registration Form */}
         <div style={{ padding: '36px 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 18 }}>
             <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 4 }}>
               Create Your Account 🚀
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Select account type or switch roles instantly using demo cards
+              Choose customer or business account type to get started
             </p>
           </div>
+
+          {pendingQueue && (
+            <div style={{
+              background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+              border: '1px solid #c7d2fe',
+              color: '#3730a3',
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: 18,
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <Lock size={16} color="#4f46e5" style={{ flexShrink: 0 }} />
+              <div>
+                Create an account to join queue for <strong>{pendingQueue.service?.name}</strong> at <strong>{pendingQueue.biz?.name}</strong>.
+              </div>
+            </div>
+          )}
 
           {/* Role Segment Toggle */}
           <div style={{
@@ -487,37 +492,7 @@ export default function Register({ onLoginClick, onRegisterSuccess }) {
             </button>
           </form>
 
-          {/* 1-Click Demo Sandbox Quick Cards */}
-          <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: '#4f46e5', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                <Sparkles size={13} color="#4f46e5" />
-                <span>Instant Demo Access</span>
-              </div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Skip registration</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('CUSTOMER')}
-                className="demo-btn demo-btn-customer active"
-                style={{ flex: 1, justifyContent: 'center', padding: '6px 8px', fontSize: '0.78rem' }}
-              >
-                <Users size={13} /> Customer Demo
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('BUSINESS_USER')}
-                className="demo-btn demo-btn-business active"
-                style={{ flex: 1, justifyContent: 'center', padding: '6px 8px', fontSize: '0.78rem' }}
-              >
-                <Store size={13} /> Business Demo
-              </button>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: 16, fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+          <div style={{ textAlign: 'center', marginTop: 24, fontSize: '0.84rem', color: 'var(--text-muted)' }}>
             Already have an account?{' '}
             <span onClick={onLoginClick} style={{ color: '#4f46e5', fontWeight: 700, cursor: 'pointer' }}>
               Sign In

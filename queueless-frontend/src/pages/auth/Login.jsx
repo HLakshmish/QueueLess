@@ -2,11 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { 
   Clock, 
-  Sparkles, 
   ArrowRight, 
-  Users, 
-  Store, 
-  ShieldCheck, 
   Mail, 
   Lock, 
   Eye, 
@@ -17,8 +13,8 @@ import {
 } from 'lucide-react';
 import heroImg from '../../assets/login_hero.jpg';
 
-export default function Login({ onRegisterClick, onLoginSuccess }) {
-  const { login, quickLogin } = useAuth();
+export default function Login({ pendingQueue, onRegisterClick, onLoginSuccess }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -34,19 +30,6 @@ export default function Login({ onRegisterClick, onLoginSuccess }) {
       if (onLoginSuccess) onLoginSuccess();
     } catch (err) {
       setError(err.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async (role) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await quickLogin(role);
-      if (onLoginSuccess) onLoginSuccess();
-    } catch (err) {
-      setError(err.message || 'Demo login failed');
     } finally {
       setLoading(false);
     }
@@ -163,16 +146,36 @@ export default function Login({ onRegisterClick, onLoginSuccess }) {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Sign In Form & 1-Click Demo */}
+        {/* RIGHT COLUMN: Sign In Form */}
         <div style={{ padding: '40px 36px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 20 }}>
             <h2 style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 6 }}>
               Welcome Back 👋
             </h2>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
-              Sign in to manage your tickets or select a demo role below
+              Sign in to manage your tickets and services
             </p>
           </div>
+
+          {pendingQueue && (
+            <div style={{
+              background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+              border: '1px solid #c7d2fe',
+              color: '#3730a3',
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: 20,
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <Lock size={16} color="#4f46e5" style={{ flexShrink: 0 }} />
+              <div>
+                Please sign in to join queue for <strong>{pendingQueue.service?.name}</strong> at <strong>{pendingQueue.biz?.name}</strong>.
+              </div>
+            </div>
+          )}
 
           {error && (
             <div style={{
@@ -262,103 +265,7 @@ export default function Login({ onRegisterClick, onLoginSuccess }) {
             </button>
           </form>
 
-          {/* 1-Click Role Switcher Demo */}
-          <div style={{ marginTop: 26, paddingTop: 20, borderTop: '1px solid var(--border-subtle)' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 12
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#4f46e5', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                <Sparkles size={14} color="#4f46e5" />
-                <span>Instant 1-Click Demo Login</span>
-              </div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No password needed</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {/* Customer Role Card */}
-              <div 
-                className="demo-role-card"
-                onClick={() => handleDemoLogin('CUSTOMER')} 
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(59, 130, 246, 0.25) 100%)',
-                    color: '#2563eb',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Users size={18} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>Customer Mode</div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Rahul Verma • Live Ticket #Q-001</div>
-                  </div>
-                </div>
-                <ArrowRight size={16} color="#94a3b8" />
-              </div>
-
-              {/* Business Role Card */}
-              <div 
-                className="demo-role-card"
-                onClick={() => handleDemoLogin('BUSINESS_USER')} 
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.15) 0%, rgba(16, 185, 129, 0.25) 100%)',
-                    color: '#059669',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Store size={18} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>Business Operator</div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Dr. Sharma • Apex Healthcare Desk</div>
-                  </div>
-                </div>
-                <ArrowRight size={16} color="#94a3b8" />
-              </div>
-
-              {/* Admin Role Card */}
-              <div 
-                className="demo-role-card"
-                onClick={() => handleDemoLogin('APPLICATION_MANAGER')} 
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(168, 85, 247, 0.25) 100%)',
-                    color: '#7c3aed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <ShieldCheck size={18} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>Platform Admin</div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Super Admin Command Center</div>
-                  </div>
-                </div>
-                <ArrowRight size={16} color="#94a3b8" />
-              </div>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: 18, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          <div style={{ textAlign: 'center', marginTop: 24, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             Don't have an account?{' '}
             <span onClick={onRegisterClick} style={{ color: '#4f46e5', fontWeight: 700, cursor: 'pointer' }}>
               Register Business Account

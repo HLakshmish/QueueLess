@@ -162,7 +162,7 @@ export default async function queueRoutes(fastify, options) {
           throw new Error('QUEUE_NOT_OPEN');
         }
 
-        // Prevent duplicate active queue entries ONLY for registered customers joining for themselves or by phone
+        // If registered customer already has an active ticket in this queue, return it idempotently
         if (userId) {
           const existingEntry = await tx.queueEntry.findFirst({
             where: {
@@ -172,7 +172,17 @@ export default async function queueRoutes(fastify, options) {
             },
           });
           if (existingEntry) {
-            throw new Error('ALREADY_IN_QUEUE');
+            const peopleAhead = await tx.queueEntry.count({
+              where: {
+                queueId,
+                status: { in: ['WAITING', 'CHECKED_IN'] },
+                queueNumber: { lt: existingEntry.queueNumber },
+              },
+            });
+            const avgDuration = queue.service?.avgDurationMinutes || 15;
+            const estimatedWait = peopleAhead * avgDuration;
+
+            return { entry: existingEntry, peopleAhead, estimatedWait, alreadyActive: true };
           }
         } else if (phone) {
           const existingGuest = await tx.queueEntry.findFirst({
@@ -183,7 +193,17 @@ export default async function queueRoutes(fastify, options) {
             },
           });
           if (existingGuest) {
-            throw new Error('ALREADY_IN_QUEUE');
+            const peopleAhead = await tx.queueEntry.count({
+              where: {
+                queueId,
+                status: { in: ['WAITING', 'CHECKED_IN'] },
+                queueNumber: { lt: existingGuest.queueNumber },
+              },
+            });
+            const avgDuration = queue.service?.avgDurationMinutes || 15;
+            const estimatedWait = peopleAhead * avgDuration;
+
+            return { entry: existingGuest, peopleAhead, estimatedWait, alreadyActive: true };
           }
         }
 
@@ -242,20 +262,28 @@ export default async function queueRoutes(fastify, options) {
           },
         });
 
-        return { entry, peopleAhead, estimatedWait };
+        return { entry, peopleAhead, estimatedWait, alreadyActive: false };
       });
 
-      // Broadcast real-time update
-      if (fastify.broadcastQueueUpdate) {
-        fastify.broadcastQueueUpdate(queueId, {
-          type: 'CUSTOMER_JOINED',
-          queueId,
-          entry: result.entry,
-        });
+      // Broadcast real-time update only for new joins
+      if (!result.alreadyActive && fastify.broadcastQueueUpdate) {
+        try {
+          fastify.broadcastQueueUpdate(queueId, {
+            type: 'CUSTOMER_JOINED',
+            queueId,
+            entry: result.entry,
+          });
+        } catch (wsErr) {
+          fastify.log.warn({ err: wsErr }, 'WS broadcast error on join queue');
+        }
       }
 
-      return reply.code(201).send({
+      return reply.code(result.alreadyActive ? 200 : 201).send({
         success: true,
+        alreadyActive: !!result.alreadyActive,
+        message: result.alreadyActive 
+          ? `You are already in this queue with ticket #${result.entry.queueNumber}.` 
+          : undefined,
         data: {
           entry: result.entry,
           peopleAhead: result.peopleAhead,

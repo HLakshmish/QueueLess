@@ -1,22 +1,76 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Search, MapPin, Clock, Users, ArrowRight, CheckCircle2, AlertCircle, Building2, Sparkles } from 'lucide-react';
+import { Search, MapPin, Clock, Users, ArrowRight, CheckCircle2, AlertCircle, Building2, Sparkles, Lock, Ticket } from 'lucide-react';
 
-export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
+export default function ExploreQueues({ 
+  onTicketIssued, 
+  onJoinBusiness, 
+  onRequireLogin, 
+  onRequireRegister,
+  pendingJoinQueue,
+  onClearPendingQueue 
+}) {
   const { user } = useAuth();
   const [businesses, setBusinesses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedService, setSelectedService] = useState(null);
+  const [authRequiredService, setAuthRequiredService] = useState(null);
   const [joining, setJoining] = useState(false);
-  const [guestName, setGuestName] = useState('');
-  const [guestPhone, setGuestPhone] = useState('');
   const [message, setMessage] = useState(null);
+  const [modalError, setModalError] = useState(null);
+  const [activeTicketsMap, setActiveTicketsMap] = useState({});
 
   useEffect(() => {
     loadBusinesses();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadActiveTickets();
+    } else {
+      setActiveTicketsMap({});
+    }
+  }, [user]);
+
+  // When user logs in with a pending queue, auto-open the join confirmation modal or go to ticket
+  useEffect(() => {
+    if (user && pendingJoinQueue) {
+      const existingEntry = activeTicketsMap[pendingJoinQueue.queue?.id];
+      if (existingEntry) {
+        if (onTicketIssued) {
+          onTicketIssued(existingEntry.id);
+        }
+        if (onClearPendingQueue) {
+          onClearPendingQueue();
+        }
+        return;
+      }
+      setSelectedService(pendingJoinQueue);
+      setModalError(null);
+      if (onClearPendingQueue) {
+        onClearPendingQueue();
+      }
+    }
+  }, [user, pendingJoinQueue, activeTicketsMap]);
+
+  async function loadActiveTickets() {
+    try {
+      const res = await api.getCustomerHistory();
+      if (res.success && res.data) {
+        const map = {};
+        res.data.forEach((entry) => {
+          if (['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'].includes(entry.status)) {
+            map[entry.queueId] = entry;
+          }
+        });
+        setActiveTicketsMap(map);
+      }
+    } catch (e) {
+      // Ignore background errors
+    }
+  }
 
   async function loadBusinesses(query = '') {
     setLoading(true);
@@ -37,24 +91,91 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
     loadBusinesses(search);
   };
 
+  const handleInitiateJoin = (service, activeQueue, branch, biz) => {
+    setModalError(null);
+    if (!user) {
+      setAuthRequiredService({ service, queue: activeQueue, branch, biz });
+      return;
+    }
+    // If already in this queue, navigate directly to ticket
+    if (activeTicketsMap[activeQueue.id]) {
+      if (onTicketIssued) {
+        onTicketIssued(activeTicketsMap[activeQueue.id].id);
+      }
+      return;
+    }
+    setSelectedService({ service, queue: activeQueue, branch, biz });
+  };
+
   const handleJoinQueue = async (queue) => {
+    if (!user) {
+      setAuthRequiredService(selectedService);
+      setSelectedService(null);
+      return;
+    }
     setJoining(true);
     setMessage(null);
+    setModalError(null);
     try {
       const res = await api.joinQueue(queue.id, {
-        customerName: user ? user.fullName : guestName,
-        customerPhone: user ? user.phone : guestPhone,
+        customerName: user.fullName,
+        customerPhone: user.phone || '',
       });
 
       if (res.success) {
         setMessage({ type: 'success', text: `Successfully joined! Your Queue Number is #${res.data.entry.queueNumber}` });
         setSelectedService(null);
+        await loadActiveTickets();
         if (onTicketIssued) {
           onTicketIssued(res.data.entry.id);
         }
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.message || 'Failed to join queue' });
+      const errMsg = err.message || 'Failed to join queue';
+      setModalError(errMsg);
+      setMessage({ type: 'error', text: errMsg });
+      if (errMsg.toLowerCase().includes('already in this queue')) {
+        loadActiveTickets();
+      }
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleCancelAndRejoin = async (queue) => {
+    if (!user) return;
+    setJoining(true);
+    setModalError(null);
+    try {
+      // If we don't have the entry id in activeTicketsMap, look it up from history
+      let existingEntry = activeTicketsMap[queue.id];
+      if (!existingEntry) {
+        const histRes = await api.getCustomerHistory();
+        if (histRes.success && histRes.data) {
+          existingEntry = histRes.data.find(e => e.queueId === queue.id && ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'].includes(e.status));
+        }
+      }
+
+      if (existingEntry) {
+        await api.cancelEntry(existingEntry.id);
+      }
+
+      // Join the queue fresh
+      const res = await api.joinQueue(queue.id, {
+        customerName: user.fullName,
+        customerPhone: user.phone || '',
+      });
+
+      if (res.success) {
+        setMessage({ type: 'success', text: `Successfully joined! Your Queue Number is #${res.data.entry.queueNumber}` });
+        setSelectedService(null);
+        await loadActiveTickets();
+        if (onTicketIssued) {
+          onTicketIssued(res.data.entry.id);
+        }
+      }
+    } catch (err) {
+      setModalError(err.message || 'Failed to cancel and rejoin queue');
     } finally {
       setJoining(false);
     }
@@ -254,13 +375,34 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
                             </div>
 
                             {activeQueue ? (
-                              <button 
-                                onClick={() => setSelectedService({ service, queue: activeQueue, branch, biz })}
-                                className="btn-primary"
-                                style={{ padding: '8px 14px', fontSize: '0.85rem' }}
-                              >
-                                Join Queue <ArrowRight size={14} />
-                              </button>
+                              activeTicketsMap[activeQueue.id] ? (
+                                <button
+                                  onClick={() => onTicketIssued && onTicketIssued(activeTicketsMap[activeQueue.id].id)}
+                                  className="btn-secondary"
+                                  style={{
+                                    padding: '8px 14px',
+                                    fontSize: '0.84rem',
+                                    background: '#f0fdf4',
+                                    borderColor: '#86efac',
+                                    color: '#15803d',
+                                    fontWeight: 700,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6
+                                  }}
+                                  title="You already have an active ticket for this queue"
+                                >
+                                  <Ticket size={14} color="#16a34a" /> View Ticket #Q-{activeTicketsMap[activeQueue.id].queueNumber}
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => handleInitiateJoin(service, activeQueue, branch, biz)}
+                                  className="btn-primary"
+                                  style={{ padding: '8px 14px', fontSize: '0.85rem' }}
+                                >
+                                  Join Queue <ArrowRight size={14} />
+                                </button>
+                              )
                             ) : (
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Queue Closed</span>
                             )}
@@ -276,8 +418,90 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
         </div>
       )}
 
-      {/* Join Modal */}
-      {selectedService && (
+      {/* Auth Required Modal */}
+      {authRequiredService && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.5)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999,
+          padding: 20
+        }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 32, background: '#ffffff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', borderRadius: 20, textAlign: 'center' }}>
+            <div style={{
+              width: 58,
+              height: 58,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(79, 70, 229, 0.18) 100%)',
+              color: '#4f46e5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 18px'
+            }}>
+              <Lock size={26} />
+            </div>
+
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: 8, color: 'var(--text-main)' }}>
+              Sign In to Join Queue
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: 22 }}>
+              To join the queue for <strong style={{ color: 'var(--text-main)' }}>{authRequiredService.service.name}</strong> at <strong style={{ color: 'var(--text-main)' }}>{authRequiredService.biz.name}</strong>, you need to sign in to your account first.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button 
+                onClick={() => {
+                  const target = authRequiredService;
+                  setAuthRequiredService(null);
+                  if (onRequireLogin) onRequireLogin(target);
+                }} 
+                className="btn-primary"
+                style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '0.92rem', borderRadius: 12 }}
+              >
+                Sign In to Continue <ArrowRight size={16} />
+              </button>
+
+              <button 
+                onClick={() => {
+                  const target = authRequiredService;
+                  setAuthRequiredService(null);
+                  if (onRequireRegister) onRequireRegister(target);
+                }} 
+                className="btn-secondary"
+                style={{ width: '100%', justifyContent: 'center', padding: '11px', fontSize: '0.88rem', borderRadius: 12 }}
+              >
+                Create an Account
+              </button>
+
+              <button 
+                onClick={() => setAuthRequiredService(null)} 
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  marginTop: 4
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Join Live Queue Modal for Authenticated Customer */}
+      {selectedService && user && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -298,7 +522,50 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
               {selectedService.biz.name} — {selectedService.service.name}
             </p>
 
-            <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', padding: 16, borderRadius: 12, marginBottom: 20 }}>
+            {modalError && (
+              <div style={{
+                background: 'rgba(244, 63, 94, 0.08)',
+                border: '1px solid rgba(244, 63, 94, 0.3)',
+                color: '#e11d48',
+                padding: '12px 14px',
+                borderRadius: 12,
+                marginBottom: 16,
+                fontSize: '0.85rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                  <span>{modalError}</span>
+                </div>
+                {modalError.toLowerCase().includes('already in this queue') && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                    <button
+                      onClick={() => {
+                        const entry = activeTicketsMap[selectedService?.queue?.id];
+                        setSelectedService(null);
+                        if (onTicketIssued) onTicketIssued(entry?.id || null);
+                      }}
+                      className="btn-primary"
+                      style={{ padding: '6px 14px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Ticket size={14} /> View My Active Ticket
+                    </button>
+                    <button
+                      onClick={() => handleCancelAndRejoin(selectedService.queue)}
+                      disabled={joining}
+                      className="btn-secondary"
+                      style={{ padding: '6px 14px', fontSize: '0.82rem', borderColor: '#fca5a5', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      {joining ? 'Rejoining...' : 'Cancel Old Ticket & Rejoin'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', padding: 16, borderRadius: 12, marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Estimated Wait:</span>
                 <span style={{ fontWeight: 700, color: '#10b981' }}>
@@ -313,30 +580,18 @@ export default function ExploreQueues({ onTicketIssued, onJoinBusiness }) {
               </div>
             </div>
 
-            {!user && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-                <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Your Full Name</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. John Doe"
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Mobile Number (for SMS alert)</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. +91 9876543210"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                  />
-                </div>
+            {/* Authenticated Customer Identity Badge */}
+            <div style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)', border: '1px solid #a7f3d0', padding: 14, borderRadius: 12, marginBottom: 20 }}>
+              <div style={{ fontSize: '0.74rem', color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 4 }}>
+                Joining Queue As
               </div>
-            )}
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#065f46' }}>
+                {user.fullName}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#059669', marginTop: 2 }}>
+                {user.phone ? `${user.phone} • ` : ''}{user.email}
+              </div>
+            </div>
 
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button onClick={() => setSelectedService(null)} className="btn-secondary">Cancel</button>

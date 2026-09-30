@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import {
-  Users,
   Store,
   ShieldCheck,
   Clock,
@@ -16,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export default function Navbar({ currentView, setCurrentView }) {
-  const { user, role, logout, quickLogin } = useAuth();
+  const { user, role, logout } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
 
@@ -54,48 +53,6 @@ export default function Navbar({ currentView, setCurrentView }) {
 
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-      {/* TIER 1: DEDICATED TOP DEMO ROLE STRIP */}
-      <div className="demo-bar-strip">
-        <div className="demo-bar-content">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1' }}>
-            <Sparkles size={15} color="#38bdf8" />
-            <span style={{ color: '#f8fafc', fontWeight: 800 }}>QueueLess Interactive Demo:</span>
-            <span>Click any role button to switch perspective instantly</span>
-          </div>
-
-          <div className="demo-role-container">
-            <div className="demo-live-badge">
-              <span className="live-dot"></span>
-              <Sparkles size={12} color="#38bdf8" />
-              <span>Demo Sandbox</span>
-            </div>
-
-            <button
-              onClick={() => quickLogin('CUSTOMER')}
-              className={`demo-btn demo-btn-customer ${role === 'CUSTOMER' ? 'active' : ''}`}
-              title="Switch to Demo Customer (Rahul Verma)"
-            >
-              <Users size={14} /> Customer Mode
-            </button>
-
-            <button
-              onClick={() => quickLogin('BUSINESS_USER')}
-              className={`demo-btn demo-btn-business ${role === 'BUSINESS_USER' ? 'active' : ''}`}
-              title="Switch to Demo Business Operator (Apex Clinic)"
-            >
-              <Store size={14} /> Business Desk
-            </button>
-
-            <button
-              onClick={() => quickLogin('APPLICATION_MANAGER')}
-              className={`demo-btn demo-btn-admin ${role === 'APPLICATION_MANAGER' ? 'active' : ''}`}
-              title="Switch to Demo Platform Admin"
-            >
-              <ShieldCheck size={14} /> Admin
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* TIER 2: MAIN NAVIGATION BAR */}
       <nav style={{

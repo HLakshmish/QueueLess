@@ -1,7 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Search, MapPin, Clock, Users, ArrowRight, CheckCircle2, AlertCircle, Building2, Sparkles, Lock, Ticket } from 'lucide-react';
+import { Search, MapPin, Clock, Users, ArrowRight, CheckCircle2, AlertCircle, Building2, Sparkles, Lock, Ticket, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+
+function getFormattedDateString(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatShortDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  return dateObj.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatFullDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  return dateObj.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
 export default function ExploreQueues({ 
   onTicketIssued, 
@@ -12,6 +41,12 @@ export default function ExploreQueues({
   onClearPendingQueue 
 }) {
   const { user } = useAuth();
+  const todayStr = getFormattedDateString();
+  const tomorrowObj = new Date();
+  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+  const tomorrowStr = getFormattedDateString(tomorrowObj);
+
+  const [selectedDate, setSelectedDate] = useState(() => getFormattedDateString());
   const [businesses, setBusinesses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -23,8 +58,8 @@ export default function ExploreQueues({
   const [activeTicketsMap, setActiveTicketsMap] = useState({});
 
   useEffect(() => {
-    loadBusinesses();
-  }, []);
+    loadBusinesses(search, selectedDate);
+  }, [selectedDate]);
 
   useEffect(() => {
     if (user) {
@@ -72,10 +107,13 @@ export default function ExploreQueues({
     }
   }
 
-  async function loadBusinesses(query = '') {
+  async function loadBusinesses(query = search, dateToLoad = selectedDate) {
     setLoading(true);
     try {
-      const res = await api.getBusinesses(query ? `query=${encodeURIComponent(query)}` : '');
+      const params = {};
+      if (query) params.query = query;
+      if (dateToLoad) params.date = dateToLoad;
+      const res = await api.getBusinesses(params);
       if (res.success) {
         setBusinesses(res.data);
       }
@@ -88,23 +126,23 @@ export default function ExploreQueues({
 
   const handleSearch = (e) => {
     e.preventDefault();
-    loadBusinesses(search);
+    loadBusinesses(search, selectedDate);
   };
 
   const handleInitiateJoin = (service, activeQueue, branch, biz) => {
     setModalError(null);
     if (!user) {
-      setAuthRequiredService({ service, queue: activeQueue, branch, biz });
+      setAuthRequiredService({ service, queue: activeQueue, branch, biz, targetDate: selectedDate });
       return;
     }
     // If already in this queue, navigate directly to ticket
-    if (activeTicketsMap[activeQueue.id]) {
+    if (activeQueue && activeTicketsMap[activeQueue.id]) {
       if (onTicketIssued) {
         onTicketIssued(activeTicketsMap[activeQueue.id].id);
       }
       return;
     }
-    setSelectedService({ service, queue: activeQueue, branch, biz });
+    setSelectedService({ service, queue: activeQueue, branch, biz, targetDate: selectedDate });
   };
 
   const handleJoinQueue = async (queue) => {
@@ -117,13 +155,22 @@ export default function ExploreQueues({
     setMessage(null);
     setModalError(null);
     try {
-      const res = await api.joinQueue(queue.id, {
-        customerName: user.fullName,
-        customerPhone: user.phone || '',
-      });
+      let res;
+      if (queue?.id) {
+        res = await api.joinQueue(queue.id, {
+          customerName: user.fullName,
+          customerPhone: user.phone || '',
+        });
+      } else if (selectedService?.service?.id) {
+        res = await api.joinServiceQueue(selectedService.service.id, {
+          date: selectedDate,
+          customerName: user.fullName,
+          customerPhone: user.phone || '',
+        });
+      }
 
-      if (res.success) {
-        setMessage({ type: 'success', text: `Successfully joined! Your Queue Number is #${res.data.entry.queueNumber}` });
+      if (res && res.success) {
+        setMessage({ type: 'success', text: `Successfully joined for ${formatFullDate(selectedDate)}! Your Queue Number is #${res.data.entry.queueNumber}` });
         setSelectedService(null);
         await loadActiveTickets();
         if (onTicketIssued) {
@@ -147,9 +194,8 @@ export default function ExploreQueues({
     setJoining(true);
     setModalError(null);
     try {
-      // If we don't have the entry id in activeTicketsMap, look it up from history
-      let existingEntry = activeTicketsMap[queue.id];
-      if (!existingEntry) {
+      let existingEntry = queue?.id ? activeTicketsMap[queue.id] : null;
+      if (!existingEntry && queue?.id) {
         const histRes = await api.getCustomerHistory();
         if (histRes.success && histRes.data) {
           existingEntry = histRes.data.find(e => e.queueId === queue.id && ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'].includes(e.status));
@@ -160,14 +206,22 @@ export default function ExploreQueues({
         await api.cancelEntry(existingEntry.id);
       }
 
-      // Join the queue fresh
-      const res = await api.joinQueue(queue.id, {
-        customerName: user.fullName,
-        customerPhone: user.phone || '',
-      });
+      let res;
+      if (queue?.id) {
+        res = await api.joinQueue(queue.id, {
+          customerName: user.fullName,
+          customerPhone: user.phone || '',
+        });
+      } else if (selectedService?.service?.id) {
+        res = await api.joinServiceQueue(selectedService.service.id, {
+          date: selectedDate,
+          customerName: user.fullName,
+          customerPhone: user.phone || '',
+        });
+      }
 
-      if (res.success) {
-        setMessage({ type: 'success', text: `Successfully joined! Your Queue Number is #${res.data.entry.queueNumber}` });
+      if (res && res.success) {
+        setMessage({ type: 'success', text: `Successfully joined for ${formatFullDate(selectedDate)}! Your Queue Number is #${res.data.entry.queueNumber}` });
         setSelectedService(null);
         await loadActiveTickets();
         if (onTicketIssued) {
@@ -180,6 +234,9 @@ export default function ExploreQueues({
       setJoining(false);
     }
   };
+
+  const isSelectedToday = selectedDate === todayStr;
+  const isSelectedPast = selectedDate < todayStr;
 
   const categories = [
     'All',
@@ -294,6 +351,107 @@ export default function ExploreQueues({
             </button>
           ))}
         </div>
+
+        {/* Date Selector Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          marginTop: 22,
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Calendar size={16} color="#007bff" />
+            Queue Date:
+          </span>
+
+          <button
+            onClick={() => setSelectedDate(todayStr)}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 20,
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              background: isSelectedToday ? 'var(--accent-blue, #007bff)' : '#ffffff',
+              color: isSelectedToday ? '#ffffff' : 'var(--text-main)',
+              border: `1px solid ${isSelectedToday ? 'var(--accent-blue, #007bff)' : 'var(--border-subtle)'}`,
+              boxShadow: isSelectedToday ? '0 4px 12px rgba(0, 123, 255, 0.25)' : '0 1px 3px rgba(0,0,0,0.02)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Today ({formatShortDate(todayStr)})
+          </button>
+
+          <button
+            onClick={() => setSelectedDate(tomorrowStr)}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 20,
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              background: selectedDate === tomorrowStr ? 'var(--accent-blue, #007bff)' : '#ffffff',
+              color: selectedDate === tomorrowStr ? '#ffffff' : 'var(--text-main)',
+              border: `1px solid ${selectedDate === tomorrowStr ? 'var(--accent-blue, #007bff)' : 'var(--border-subtle)'}`,
+              boxShadow: selectedDate === tomorrowStr ? '0 4px 12px rgba(0, 123, 255, 0.25)' : '0 1px 3px rgba(0,0,0,0.02)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Tomorrow ({formatShortDate(tomorrowStr)})
+          </button>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: '#ffffff',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 20,
+            padding: '5px 14px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+          }}>
+            <Calendar size={14} color="var(--text-muted)" />
+            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-main)' }}>
+              {selectedDate !== todayStr && selectedDate !== tomorrowStr ? formatShortDate(selectedDate) : 'Pick Date'}
+            </span>
+            <input
+              type="date"
+              value={selectedDate}
+              min={todayStr}
+              onChange={(e) => {
+                if (e.target.value) setSelectedDate(e.target.value);
+              }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontSize: '0.82rem',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                outline: 'none',
+                width: 22,
+                overflow: 'hidden'
+              }}
+              title="Select custom date"
+            />
+          </div>
+
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: isSelectedToday ? '#eff6ff' : isSelectedPast ? '#fffbeb' : '#f0fdf4',
+            border: `1px solid ${isSelectedToday ? '#bfdbfe' : isSelectedPast ? '#fde68a' : '#bbf7d0'}`,
+            color: isSelectedToday ? '#1d4ed8' : isSelectedPast ? '#b45309' : '#15803d',
+            padding: '5px 12px',
+            borderRadius: 20,
+            fontSize: '0.8rem',
+            fontWeight: 700
+          }}>
+            <span>📅 {formatFullDate(selectedDate)}</span>
+          </div>
+        </div>
       </div>
 
       {message && (
@@ -400,11 +558,21 @@ export default function ExploreQueues({
                                   className="btn-primary"
                                   style={{ padding: '8px 14px', fontSize: '0.85rem' }}
                                 >
-                                  Join Queue <ArrowRight size={14} />
+                                  Join Queue {isSelectedToday ? '' : `(${formatShortDate(selectedDate)})`} <ArrowRight size={14} />
                                 </button>
                               )
                             ) : (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Queue Closed</span>
+                              !isSelectedPast ? (
+                                <button 
+                                  onClick={() => handleInitiateJoin(service, null, branch, biz)}
+                                  className="btn-primary"
+                                  style={{ padding: '8px 14px', fontSize: '0.85rem', background: 'linear-gradient(135deg, #007bff 0%, #4f46e5 100%)' }}
+                                >
+                                  Join Queue {isSelectedToday ? '' : `(${formatShortDate(selectedDate)})`} <ArrowRight size={14} />
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Queue Closed</span>
+                              )
                             )}
                           </div>
                         );
@@ -452,9 +620,24 @@ export default function ExploreQueues({
             <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: 8, color: 'var(--text-main)' }}>
               Sign In to Join Queue
             </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: 22 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: 14 }}>
               To join the queue for <strong style={{ color: 'var(--text-main)' }}>{authRequiredService.service.name}</strong> at <strong style={{ color: 'var(--text-main)' }}>{authRequiredService.biz.name}</strong>, you need to sign in to your account first.
             </p>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              color: '#1d4ed8',
+              padding: '4px 12px',
+              borderRadius: 8,
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              marginBottom: 20
+            }}>
+              <Calendar size={13} /> Queue Date: {formatFullDate(selectedDate)}
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button 
@@ -517,10 +700,26 @@ export default function ExploreQueues({
           padding: 20
         }}>
           <div className="glass-panel" style={{ width: '100%', maxWidth: 480, padding: 32, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '1.4rem', marginBottom: 8 }}>Join Live Queue</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 20 }}>
+            <h3 style={{ fontSize: '1.4rem', marginBottom: 6 }}>Join Live Queue</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 12 }}>
               {selectedService.biz.name} — {selectedService.service.name}
             </p>
+
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              color: '#1d4ed8',
+              padding: '6px 14px',
+              borderRadius: 10,
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              marginBottom: 18
+            }}>
+              <Calendar size={15} /> Queue Date: {formatFullDate(selectedDate)}
+            </div>
 
             {modalError && (
               <div style={{
@@ -569,13 +768,13 @@ export default function ExploreQueues({
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Estimated Wait:</span>
                 <span style={{ fontWeight: 700, color: '#10b981' }}>
-                  ~{(selectedService.queue.entries?.length || 0) * (selectedService.service.avgDurationMinutes || 15)} mins
+                  ~{(selectedService.queue?.entries?.length || 0) * (selectedService.service.avgDurationMinutes || 15)} mins
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>People Ahead:</span>
                 <span style={{ fontWeight: 700, color: '#fbbf24' }}>
-                  {selectedService.queue.entries?.length || 0}
+                  {selectedService.queue?.entries?.length || 0}
                 </span>
               </div>
             </div>

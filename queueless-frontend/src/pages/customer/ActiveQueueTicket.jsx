@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { subscribeToQueue } from '../../services/socket';
-import { Clock, Users, CheckCircle, XCircle, Bell, MapPin, Building, Sparkles } from 'lucide-react';
+import { Clock, Users, CheckCircle, XCircle, Bell, MapPin, Building, Sparkles, Calendar } from 'lucide-react';
 
 export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
   const [entry, setEntry] = useState(null);
@@ -179,6 +179,10 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-dim)', fontSize: '0.82rem', marginTop: 4 }}>
               <MapPin size={12} />
               <span>{entry.queue?.service?.branch?.name}, {entry.queue?.service?.branch?.city}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: 5 }}>
+              <Calendar size={13} color="#007bff" />
+              <span>Queue Date: <strong style={{ color: 'var(--text-main)' }}>{new Date(entry.queue?.date || entry.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong></span>
             </div>
           </div>
 

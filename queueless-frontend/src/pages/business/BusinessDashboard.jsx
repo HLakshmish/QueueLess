@@ -14,12 +14,37 @@ import {
   StopCircle, 
   Clock, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Calendar,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+
+function getFormattedDateString(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  return dateObj.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
 export default function BusinessDashboard() {
   const { user, activeBusiness } = useAuth();
+  const todayStr = getFormattedDateString();
+  const [selectedDate, setSelectedDate] = useState(() => getFormattedDateString());
   const [queues, setQueues] = useState([]);
+  const [allServices, setAllServices] = useState([]);
   const [selectedQueue, setSelectedQueue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -27,32 +52,40 @@ export default function BusinessDashboard() {
   const [walkInName, setWalkInName] = useState('');
   const [walkInPhone, setWalkInPhone] = useState('');
 
-  // Load business queues
+  // Load business queues for selected date
   useEffect(() => {
-    loadBusinessData();
-  }, [activeBusiness]);
+    loadBusinessData(selectedDate);
+  }, [activeBusiness, selectedDate]);
 
-  async function loadBusinessData() {
+  async function loadBusinessData(dateToLoad = selectedDate) {
     if (!activeBusiness) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const res = await api.getBusinessById(activeBusiness.id);
+      const res = await api.getBusinessById(activeBusiness.id, { date: dateToLoad });
       if (res.success && res.data) {
         const foundQueues = [];
+        const servicesList = [];
         for (const branch of res.data.branches || []) {
           for (const service of branch.services || []) {
+            servicesList.push({ ...service, branch });
             for (const q of service.queues || []) {
               foundQueues.push({ ...q, service, branch });
             }
           }
         }
+        setAllServices(servicesList);
         setQueues(foundQueues);
         if (foundQueues.length > 0) {
-          setSelectedQueue(foundQueues[0]);
-          loadQueueDetails(foundQueues[0].id);
+          // If the previously selected queue still exists for this date, keep it; else first
+          const stillThere = foundQueues.find(q => q.id === selectedQueue?.id);
+          const queueToSelect = stillThere || foundQueues[0];
+          setSelectedQueue(queueToSelect);
+          loadQueueDetails(queueToSelect.id);
+        } else {
+          setSelectedQueue(null);
         }
       }
     } catch (err) {
@@ -91,6 +124,46 @@ export default function BusinessDashboard() {
       unsubscribe();
     };
   }, [selectedQueue?.id]);
+
+  // Date Navigation Handlers
+  const handlePrevDay = () => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d - 1);
+    setSelectedDate(getFormattedDateString(dateObj));
+  };
+
+  const handleNextDay = () => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d + 1);
+    setSelectedDate(getFormattedDateString(dateObj));
+  };
+
+  const handleToday = () => {
+    setSelectedDate(todayStr);
+  };
+
+  const isToday = selectedDate === todayStr;
+  const isPast = selectedDate < todayStr;
+  const isFuture = selectedDate > todayStr;
+
+  // Open queue for a specific service on selected date
+  const handleOpenQueueForDate = async (serviceId) => {
+    if (!serviceId) return;
+    setActionLoading(true);
+    try {
+      const res = await api.openQueue(serviceId, {
+        title: isToday ? "Today's Live Queue" : `Queue (${formatDisplayDate(selectedDate)})`,
+        date: selectedDate,
+      });
+      if (res.success) {
+        await loadBusinessData(selectedDate);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to open queue for date');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Concurrency-safe Call Next
   const handleCallNext = async () => {
@@ -188,17 +261,22 @@ export default function BusinessDashboard() {
         branchId = newBranch.data.id;
       }
 
-      const serviceRes = await api.createService(branchId, {
-        name: 'General Consultation',
-        description: 'Primary customer service & queue desk',
-        avgDurationMinutes: 15,
+      let serviceId = allServices[0]?.id;
+      if (!serviceId) {
+        const serviceRes = await api.createService(branchId, {
+          name: 'General Consultation',
+          description: 'Primary customer service & queue desk',
+          avgDurationMinutes: 15,
+        });
+        serviceId = serviceRes.data.id;
+      }
+
+      await api.openQueue(serviceId, {
+        title: isToday ? "Today's Live Queue" : `Queue (${formatDisplayDate(selectedDate)})`,
+        date: selectedDate,
       });
 
-      await api.openQueue(serviceRes.data.id, {
-        title: "Today's Live Queue",
-      });
-
-      await loadBusinessData();
+      await loadBusinessData(selectedDate);
     } catch (err) {
       alert(err.message || 'Failed to initialize queue');
     } finally {
@@ -210,7 +288,7 @@ export default function BusinessDashboard() {
     e.preventDefault();
     if (!walkInName.trim()) return;
     if (!selectedQueue?.id) {
-      alert('No active queue available. Please initialize or open a queue first.');
+      alert('No active queue available for this date. Please open a queue first.');
       return;
     }
     setActionLoading(true);
@@ -282,12 +360,97 @@ export default function BusinessDashboard() {
   return (
     <div style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 20px' }}>
       {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
             {activeBusiness.name}
           </div>
           <h1 style={{ fontSize: '1.8rem', marginTop: 2 }}>Live Queue Dashboard</h1>
+        </div>
+
+        {/* Date Selector & Navigation Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: '#ffffff',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 14,
+          padding: '6px 12px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            onClick={handlePrevDay}
+            className="btn-secondary"
+            style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+            title="Previous Day"
+          >
+            <ChevronLeft size={16} />
+          </button>
+
+          <button
+            onClick={handleToday}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 8,
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              background: isToday ? 'var(--accent-blue, #007bff)' : '#f1f5f9',
+              color: isToday ? '#ffffff' : 'var(--text-main)',
+              border: 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Today
+          </button>
+
+          <button
+            onClick={handleNextDay}
+            className="btn-secondary"
+            style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+            title="Next Day"
+          >
+            <ChevronRight size={16} />
+          </button>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '5px 12px',
+            background: '#f8fafc',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 8,
+          }}>
+            <Calendar size={15} color="#007bff" />
+            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
+              {formatDisplayDate(selectedDate)}
+            </span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                if (e.target.value) setSelectedDate(e.target.value);
+              }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontSize: '0.82rem',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                outline: 'none',
+                width: 24,
+                overflow: 'hidden'
+              }}
+              title="Click calendar icon to pick date"
+            />
+          </div>
+
+          <span className={`badge ${isToday ? 'badge-serving' : isPast ? 'badge-waiting' : 'badge-called'}`} style={{ fontSize: '0.74rem' }}>
+            {isToday ? '🟢 Today' : isPast ? '⏳ Past Date' : '🗓️ Upcoming'}
+          </span>
         </div>
 
         {/* Queue Selector & Desk Controls */}
@@ -312,10 +475,10 @@ export default function BusinessDashboard() {
           <button 
             onClick={() => {
               if (!selectedQueue?.id) {
-                if (queues.length === 0) {
-                  handleQuickSetupQueue();
+                if (allServices.length > 0) {
+                  handleOpenQueueForDate(allServices[0].id);
                 } else {
-                  alert('Please select an active queue first.');
+                  handleQuickSetupQueue();
                 }
                 return;
               }
@@ -333,13 +496,13 @@ export default function BusinessDashboard() {
         </div>
       </div>
 
-      {/* Warning & Quick Setup if No Queue Exists */}
+      {/* Info / Quick Setup if No Queue Exists for this Date */}
       {queues.length === 0 && (
         <div style={{
           background: '#fffbeb',
           border: '1px solid #fde68a',
           borderRadius: 14,
-          padding: '20px 24px',
+          padding: '24px 28px',
           marginBottom: 28,
           display: 'flex',
           justifyContent: 'space-between',
@@ -349,26 +512,45 @@ export default function BusinessDashboard() {
           boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ background: '#fef3c7', padding: 10, borderRadius: 10, color: '#d97706' }}>
-              <AlertCircle size={24} />
+            <div style={{ background: '#fef3c7', padding: 12, borderRadius: 12, color: '#d97706' }}>
+              <Calendar size={28} />
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#92400e' }}>
-                No Active Live Queue Setup for This Business Yet
+              <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#92400e' }}>
+                No Queue Session Opened for {formatDisplayDate(selectedDate)}
               </div>
-              <p style={{ color: '#b45309', fontSize: '0.85rem', marginTop: 2 }}>
-                Open your primary service queue to start adding walk-in customers and calling tokens.
+              <p style={{ color: '#b45309', fontSize: '0.88rem', marginTop: 3 }}>
+                {isPast 
+                  ? 'No queue records were recorded for this past date.' 
+                  : 'Open a queue desk for this date so customers and walk-in visitors can take tokens.'}
               </p>
             </div>
           </div>
-          <button
-            onClick={handleQuickSetupQueue}
-            disabled={actionLoading}
-            className="btn-primary"
-            style={{ padding: '10px 22px', fontSize: '0.88rem' }}
-          >
-            <Sparkles size={16} /> {actionLoading ? 'Initializing...' : 'Initialize & Open First Queue'}
-          </button>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {allServices.length > 0 ? (
+              allServices.map(srv => (
+                <button
+                  key={srv.id}
+                  onClick={() => handleOpenQueueForDate(srv.id)}
+                  disabled={actionLoading}
+                  className="btn-primary"
+                  style={{ padding: '10px 20px', fontSize: '0.88rem' }}
+                >
+                  <Sparkles size={16} /> Open Queue for {srv.name}
+                </button>
+              ))
+            ) : (
+              <button
+                onClick={handleQuickSetupQueue}
+                disabled={actionLoading}
+                className="btn-primary"
+                style={{ padding: '10px 22px', fontSize: '0.88rem' }}
+              >
+                <Sparkles size={16} /> {actionLoading ? 'Initializing...' : 'Initialize & Open First Queue'}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -380,13 +562,18 @@ export default function BusinessDashboard() {
           {/* Queue Overview Summary Cards */}
           <div className="glass-panel" style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: '1.25rem' }}>Queue Overview</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h3 style={{ fontSize: '1.25rem' }}>Queue Overview</h3>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  ({formatDisplayDate(selectedDate)})
+                </span>
+              </div>
               <span className={`badge ${selectedQueue?.status === 'OPEN' ? 'badge-serving' : 'badge-waiting'}`}>
-                {selectedQueue?.status}
+                {selectedQueue?.status || (isPast ? 'CLOSED' : 'NOT OPEN')}
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
               <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Live Active Customers</div>
                 <div style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--text-main)', marginTop: 4 }}>{totalActive}</div>
@@ -400,7 +587,14 @@ export default function BusinessDashboard() {
               <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Service Desk</div>
                 <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 10 }}>
-                  {selectedQueue?.service?.name || 'Main Desk'}
+                  {selectedQueue?.service?.name || allServices[0]?.name || 'Main Desk'}
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Served</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#16a34a', marginTop: 4 }}>
+                  {entries.filter(e => e.status === 'SERVED').length}
                 </div>
               </div>
             </div>
@@ -641,9 +835,13 @@ export default function BusinessDashboard() {
                     borderRadius: 8, 
                     fontSize: '0.8rem', 
                     color: 'var(--text-muted)', 
-                    marginBottom: 16 
+                    marginBottom: 16,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
                   }}>
-                    Target Queue: <strong style={{ color: '#4f46e5' }}>{selectedQueue?.service?.name || selectedQueue?.title}</strong>
+                    <span>Target: <strong style={{ color: '#4f46e5' }}>{selectedQueue?.service?.name || selectedQueue?.title}</strong></span>
+                    <span>Date: <strong style={{ color: '#007bff' }}>{formatDisplayDate(selectedDate)}</strong></span>
                   </div>
                 )}
 

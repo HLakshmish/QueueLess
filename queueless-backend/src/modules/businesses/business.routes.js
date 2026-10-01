@@ -1,9 +1,31 @@
+function parseDateBounds(dateStr) {
+  if (!dateStr) return null;
+  const str = String(dateStr).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  let year, month, day;
+  if (match) {
+    year = parseInt(match[1], 10);
+    month = parseInt(match[2], 10) - 1;
+    day = parseInt(match[3], 10);
+  } else {
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return null;
+    year = d.getFullYear();
+    month = d.getMonth();
+    day = d.getDate();
+  }
+  const start = new Date(year, month, day, 0, 0, 0, 0);
+  const end = new Date(year, month, day, 23, 59, 59, 999);
+  const dateObj = new Date(year, month, day, 12, 0, 0, 0);
+  return { start, end, dateObj };
+}
+
 export default async function businessRoutes(fastify, options) {
   const { prisma } = fastify;
 
   // GET /api/v1/businesses - Public discovery search
   fastify.get('/', async (request, reply) => {
-    const { query, category, city } = request.query;
+    const { query, category, city, date } = request.query;
 
     const whereClause = {
       status: 'ACTIVE',
@@ -20,6 +42,12 @@ export default async function businessRoutes(fastify, options) {
       ];
     }
 
+    const dateBounds = parseDateBounds(date);
+    const queueWhere = {
+      status: 'OPEN',
+      ...(dateBounds ? { date: { gte: dateBounds.start, lte: dateBounds.end } } : {}),
+    };
+
     const businesses = await prisma.business.findMany({
       where: whereClause,
       include: {
@@ -29,7 +57,7 @@ export default async function businessRoutes(fastify, options) {
               where: { isActive: true },
               include: {
                 queues: {
-                  where: { status: 'OPEN' },
+                  where: queueWhere,
                   include: {
                     entries: {
                       where: { status: { in: ['WAITING', 'CALLED', 'SERVING'] } },
@@ -49,6 +77,12 @@ export default async function businessRoutes(fastify, options) {
   // GET /api/v1/businesses/:businessId - Details
   fastify.get('/:businessId', async (request, reply) => {
     const { businessId } = request.params;
+    const { date } = request.query;
+
+    const dateBounds = parseDateBounds(date);
+    const queueWhere = dateBounds
+      ? { date: { gte: dateBounds.start, lte: dateBounds.end } }
+      : { status: { in: ['OPEN', 'PAUSED'] } };
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
@@ -60,11 +94,14 @@ export default async function businessRoutes(fastify, options) {
               where: { isActive: true },
               include: {
                 queues: {
-                  where: { status: { in: ['OPEN', 'PAUSED'] } },
+                  where: queueWhere,
                   include: {
                     entries: {
-                      where: { status: { in: ['WAITING', 'CHECKED_IN', 'CALLED', 'SERVING', 'SKIPPED'] } },
                       orderBy: { queueNumber: 'asc' },
+                    },
+                    events: {
+                      orderBy: { createdAt: 'desc' },
+                      take: 20,
                     },
                   },
                 },

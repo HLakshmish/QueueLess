@@ -46,18 +46,41 @@ export const api = {
   getMe: () => apiRequest('/auth/me'),
 
   // Businesses
-  getBusinesses: (params = '') => apiRequest(`/businesses${params ? `?${params}` : ''}`),
-  getBusinessById: (id) => apiRequest(`/businesses/${id}`),
+  getBusinesses: (params = '') => {
+    let query = '';
+    if (typeof params === 'string' && params) {
+      query = params.startsWith('?') ? params : `?${params}`;
+    } else if (params && typeof params === 'object') {
+      const q = new URLSearchParams(params).toString();
+      if (q) query = `?${q}`;
+    }
+    return apiRequest(`/businesses${query}`);
+  },
+  getBusinessById: (id, params = '') => {
+    let query = '';
+    if (typeof params === 'string' && params) {
+      query = params.startsWith('?') ? params : `?${params}`;
+    } else if (params && typeof params === 'object') {
+      const q = new URLSearchParams(params).toString();
+      if (q) query = `?${q}`;
+    }
+    return apiRequest(`/businesses/${id}${query}`);
+  },
   createBusiness: (data) => apiRequest('/businesses', { method: 'POST', body: JSON.stringify(data) }),
   updateBusiness: (id, data) => apiRequest(`/businesses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getBusinessBranches: (id) => apiRequest(`/businesses/${id}/branches`),
   createBranch: (businessId, data) => apiRequest(`/businesses/${businessId}/branches`, { method: 'POST', body: JSON.stringify(data) }),
+  updateBranch: (branchId, data) => apiRequest(`/branches/${branchId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteBranch: (branchId) => apiRequest(`/branches/${branchId}`, { method: 'DELETE' }),
   createService: (branchId, data) => apiRequest(`/branches/${branchId}/services`, { method: 'POST', body: JSON.stringify(data) }),
+  updateService: (serviceId, data) => apiRequest(`/services/${serviceId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteService: (serviceId) => apiRequest(`/services/${serviceId}`, { method: 'DELETE' }),
 
   // Queues
   openQueue: (serviceId, data) => apiRequest(`/services/${serviceId}/queues`, { method: 'POST', body: JSON.stringify(data) }),
   getQueue: (id) => apiRequest(`/queues/${id}`),
   joinQueue: (id, data) => apiRequest(`/queues/${id}/join`, { method: 'POST', body: JSON.stringify(data) }),
+  joinServiceQueue: (serviceId, data) => apiRequest(`/services/${serviceId}/queues/join`, { method: 'POST', body: JSON.stringify(data) }),
   callNext: (id) => apiRequest(`/queues/${id}/call-next`, { method: 'POST' }),
   pauseQueue: (id) => apiRequest(`/queues/${id}/pause`, { method: 'POST' }),
   resumeQueue: (id) => apiRequest(`/queues/${id}/resume`, { method: 'POST' }),

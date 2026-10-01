@@ -1,3 +1,25 @@
+function parseDateBounds(dateStr) {
+  if (!dateStr) return null;
+  const str = String(dateStr).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  let year, month, day;
+  if (match) {
+    year = parseInt(match[1], 10);
+    month = parseInt(match[2], 10) - 1;
+    day = parseInt(match[3], 10);
+  } else {
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return null;
+    year = d.getFullYear();
+    month = d.getMonth();
+    day = d.getDate();
+  }
+  const start = new Date(year, month, day, 0, 0, 0, 0);
+  const end = new Date(year, month, day, 23, 59, 59, 999);
+  const dateObj = new Date(year, month, day, 12, 0, 0, 0);
+  return { start, end, dateObj };
+}
+
 export default async function queueRoutes(fastify, options) {
   const { prisma } = fastify;
 
@@ -29,7 +51,7 @@ export default async function queueRoutes(fastify, options) {
     { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
       const { serviceId } = request.params;
-      const { title, maxCapacity } = request.body || {};
+      const { title, maxCapacity, date } = request.body || {};
 
       const service = await prisma.service.findUnique({
         where: { id: serviceId },
@@ -43,6 +65,37 @@ export default async function queueRoutes(fastify, options) {
       const isAllowed = await verifyQueueBusinessAccess(request, reply, service.branch.businessId);
       if (!isAllowed) return;
 
+      const dateBounds = parseDateBounds(date);
+      const targetDate = dateBounds ? dateBounds.dateObj : new Date();
+
+      // Check if queue for this date already exists for this service
+      if (dateBounds) {
+        let existingQueue = await prisma.queue.findFirst({
+          where: {
+            serviceId,
+            date: { gte: dateBounds.start, lte: dateBounds.end },
+          },
+          include: {
+            service: true,
+            entries: { orderBy: { queueNumber: 'asc' } },
+          },
+        });
+
+        if (existingQueue) {
+          if (existingQueue.status === 'CLOSED') {
+            existingQueue = await prisma.queue.update({
+              where: { id: existingQueue.id },
+              data: { status: 'OPEN' },
+              include: {
+                service: true,
+                entries: { orderBy: { queueNumber: 'asc' } },
+              },
+            });
+          }
+          return reply.code(200).send({ success: true, data: existingQueue });
+        }
+      }
+
       // Create new queue
       const queue = await prisma.queue.create({
         data: {
@@ -51,6 +104,7 @@ export default async function queueRoutes(fastify, options) {
           status: 'OPEN',
           currentNumber: 0,
           maxCapacity: maxCapacity ? parseInt(maxCapacity, 10) : null,
+          date: targetDate,
         },
         include: {
           service: true,
@@ -65,7 +119,7 @@ export default async function queueRoutes(fastify, options) {
           action: 'QUEUE_OPENED',
           entityType: 'QUEUE',
           entityId: queue.id,
-          details: `Queue "${queue.title}" opened.`,
+          details: `Queue "${queue.title}" opened for date ${targetDate.toISOString().split('T')[0]}.`,
         },
       });
 
@@ -73,55 +127,8 @@ export default async function queueRoutes(fastify, options) {
     }
   );
 
-  // GET /api/v1/queues/:queueId - View queue details + live stats
-  fastify.get('/queues/:queueId', async (request, reply) => {
-    const { queueId } = request.params;
-
-    const queue = await prisma.queue.findUnique({
-      where: { id: queueId },
-      include: {
-        service: {
-          include: {
-            branch: {
-              include: { business: true },
-            },
-          },
-        },
-        entries: {
-          orderBy: { queueNumber: 'asc' },
-        },
-      },
-    });
-
-    if (!queue) {
-      return reply.code(404).send({ success: false, error: 'Queue not found' });
-    }
-
-    const waitingEntries = queue.entries.filter((e) => e.status === 'WAITING' || e.status === 'CHECKED_IN');
-    const servingEntry = queue.entries
-      .filter((e) => e.status === 'SERVING' || e.status === 'CALLED')
-      .sort((a, b) => new Date(b.calledAt || 0) - new Date(a.calledAt || 0))[0] || null;
-
-    const avgDuration = queue.service.avgDurationMinutes || 15;
-
-    return reply.send({
-      success: true,
-      data: {
-        ...queue,
-        stats: {
-          totalWaiting: waitingEntries.length,
-          currentlyServing: servingEntry || null,
-          estimatedWaitMinutes: waitingEntries.length * avgDuration,
-        },
-      },
-    });
-  });
-
-  // POST /api/v1/queues/:queueId/join - Join Queue (Customer or Walk-in)
-  fastify.post('/queues/:queueId/join', async (request, reply) => {
-    const { queueId } = request.params;
-    const { customerName, customerPhone, notes, isWalkIn } = request.body || {};
-
+  // Helper for joining queue transaction and notification logic
+  async function processQueueJoin({ queueId, customerName, customerPhone, notes, isWalkIn, request, reply }) {
     let userId = null;
     let name = customerName;
     let phone = customerPhone;
@@ -134,11 +141,9 @@ export default async function queueRoutes(fastify, options) {
         if (!name) name = request.user.fullName;
         if (!phone) phone = request.user.phone;
       } else {
-        // Operator desk issuing ticket for a walk-in visitor
         userId = null;
       }
     } catch (e) {
-      // Unauthenticated walk-in/remote guest
       userId = null;
     }
 
@@ -305,6 +310,127 @@ export default async function queueRoutes(fastify, options) {
       }
       throw err;
     }
+  }
+
+  // POST /api/v1/services/:serviceId/queues/join - Join or auto-create queue by service and date
+  fastify.post('/services/:serviceId/queues/join', async (request, reply) => {
+    const { serviceId } = request.params;
+    const { customerName, customerPhone, notes, date, isWalkIn } = request.body || {};
+
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      include: { branch: true },
+    });
+
+    if (!service) {
+      return reply.code(404).send({ success: false, error: 'Service not found' });
+    }
+
+    const dateBounds = parseDateBounds(date);
+    const targetDate = dateBounds ? dateBounds.dateObj : new Date();
+
+    let queue = null;
+    if (dateBounds) {
+      queue = await prisma.queue.findFirst({
+        where: {
+          serviceId,
+          date: { gte: dateBounds.start, lte: dateBounds.end },
+        },
+      });
+    } else {
+      queue = await prisma.queue.findFirst({
+        where: {
+          serviceId,
+          status: 'OPEN',
+        },
+        orderBy: { date: 'desc' },
+      });
+    }
+
+    if (!queue) {
+      if (!service.isActive) {
+        return reply.code(400).send({ success: false, error: 'Service is currently inactive' });
+      }
+      queue = await prisma.queue.create({
+        data: {
+          serviceId,
+          title: `${service.name} Queue`,
+          status: 'OPEN',
+          currentNumber: 0,
+          date: targetDate,
+        },
+      });
+    }
+
+    return processQueueJoin({
+      queueId: queue.id,
+      customerName,
+      customerPhone,
+      notes,
+      isWalkIn,
+      request,
+      reply,
+    });
+  });
+
+  // GET /api/v1/queues/:queueId - View queue details + live stats
+  fastify.get('/queues/:queueId', async (request, reply) => {
+    const { queueId } = request.params;
+
+    const queue = await prisma.queue.findUnique({
+      where: { id: queueId },
+      include: {
+        service: {
+          include: {
+            branch: {
+              include: { business: true },
+            },
+          },
+        },
+        entries: {
+          orderBy: { queueNumber: 'asc' },
+        },
+      },
+    });
+
+    if (!queue) {
+      return reply.code(404).send({ success: false, error: 'Queue not found' });
+    }
+
+    const waitingEntries = queue.entries.filter((e) => e.status === 'WAITING' || e.status === 'CHECKED_IN');
+    const servingEntry = queue.entries
+      .filter((e) => e.status === 'SERVING' || e.status === 'CALLED')
+      .sort((a, b) => new Date(b.calledAt || 0) - new Date(a.calledAt || 0))[0] || null;
+
+    const avgDuration = queue.service.avgDurationMinutes || 15;
+
+    return reply.send({
+      success: true,
+      data: {
+        ...queue,
+        stats: {
+          totalWaiting: waitingEntries.length,
+          currentlyServing: servingEntry || null,
+          estimatedWaitMinutes: waitingEntries.length * avgDuration,
+        },
+      },
+    });
+  });
+
+  // POST /api/v1/queues/:queueId/join - Join Queue (Customer or Walk-in)
+  fastify.post('/queues/:queueId/join', async (request, reply) => {
+    const { queueId } = request.params;
+    const { customerName, customerPhone, notes, isWalkIn } = request.body || {};
+
+    return processQueueJoin({
+      queueId,
+      customerName,
+      customerPhone,
+      notes,
+      isWalkIn,
+      request,
+      reply,
+    });
   });
 
   // POST /api/v1/queues/:queueId/call-next - Concurrency-safe Call Next

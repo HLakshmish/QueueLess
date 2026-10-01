@@ -62,7 +62,7 @@ export default function QueueHistory({ onSelectTicket }) {
                 <div style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   <span>{item.queue?.service?.branch?.business?.name}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Calendar size={12} /> {new Date(item.createdAt).toLocaleDateString()}
+                    <Calendar size={12} color="#007bff" /> {new Date(item.queue?.date || item.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
               </div>

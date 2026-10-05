@@ -32,6 +32,18 @@ function formatFullDate(dateStr) {
   });
 }
 
+function getQueueWaitLevel(waitingCount, estWait) {
+  if (waitingCount <= 2 || estWait <= 15) return 'low';
+  if (waitingCount <= 8 || estWait <= 45) return 'moderate';
+  return 'busy';
+}
+
+const WAIT_LABELS = {
+  low: 'Available',
+  moderate: 'Moderate Wait',
+  busy: 'Busy',
+};
+
 export default function ExploreQueues({ 
   onTicketIssued, 
   onJoinBusiness, 
@@ -255,7 +267,7 @@ export default function ExploreQueues({
     : businesses.filter(b => b.category?.toLowerCase().includes(activeCategory.toLowerCase()));
 
   return (
-    <div style={{ maxWidth: 1240, margin: '0 auto', padding: '36px 20px 60px' }}>
+    <div className="page-container" style={{ maxWidth: 1240 }}>
       {/* Join Us as Business Banner */}
       <div style={{
         background: 'linear-gradient(135deg, #ede9fe 0%, #ffffff 50%, #f0fdf4 100%)',
@@ -303,12 +315,14 @@ export default function ExploreQueues({
           <Sparkles size={15} /> Join Us as Business <ArrowRight size={15} />
         </button>
       </div>
-      {/* Hero Header */}
       <div style={{ textAlign: 'center', marginBottom: 36 }}>
-        <h1 style={{ fontSize: '2.8rem', marginBottom: 12, letterSpacing: '-0.03em' }}>
-          Never Wait in Line. <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Join Queues Remotely.</span>
+        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 2.8rem)', marginBottom: 12, letterSpacing: '-0.03em', lineHeight: 1.15 }}>
+          Never Wait in Line.{' '}
+          <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Join Queues Remotely.
+          </span>
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: 680, margin: '0 auto' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', maxWidth: 680, margin: '0 auto', lineHeight: 1.6 }}>
           Real-time token management for clinics, salons, restaurants, banks, government desks, and diagnostic centers.
         </p>
 
@@ -330,22 +344,12 @@ export default function ExploreQueues({
           </button>
         </form>
 
-        {/* Category Pills */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 20 }}>
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                background: activeCategory === cat ? 'var(--accent-blue)' : '#ffffff',
-                color: activeCategory === cat ? '#ffffff' : 'var(--text-muted)',
-                border: `1px solid ${activeCategory === cat ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
-                boxShadow: activeCategory === cat ? '0 4px 12px rgba(0, 123, 255, 0.3)' : '0 1px 3px rgba(0,0,0,0.02)',
-              }}
+              className={`filter-pill${activeCategory === cat ? ' active' : ''}`}
             >
               {cat}
             </button>
@@ -455,17 +459,7 @@ export default function ExploreQueues({
       </div>
 
       {message && (
-        <div style={{
-          padding: 16,
-          borderRadius: 12,
-          marginBottom: 24,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          background: message.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-          border: `1px solid ${message.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-          color: message.type === 'success' ? '#0d9488' : '#fb7185',
-        }}>
+        <div className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>
           {message.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
           <span>{message.text}</span>
         </div>
@@ -473,11 +467,16 @@ export default function ExploreQueues({
 
       {/* Businesses Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Loading active business queues...</div>
+        <div className="grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="skeleton skeleton-card" />
+          ))}
+        </div>
       ) : filteredBusinesses.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60 }} className="glass-panel">
+        <div className="glass-panel empty-state">
+          <div className="empty-state-icon"><Search size={26} /></div>
           <h3>No active businesses found</h3>
-          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Try clearing filters or search term.</p>
+          <p>Try clearing filters or adjusting your search term.</p>
         </div>
       ) : (
         <div className="grid-cols-2">
@@ -505,6 +504,7 @@ export default function ExploreQueues({
                         const activeQueue = service.queues?.[0];
                         const waitingCount = activeQueue?.entries?.length || 0;
                         const estWait = waitingCount * (service.avgDurationMinutes || 15);
+                        const waitLevel = getQueueWaitLevel(waitingCount, estWait);
 
                         return (
                           <div 
@@ -513,21 +513,32 @@ export default function ExploreQueues({
                               display: 'flex', 
                               justifyContent: 'space-between', 
                               alignItems: 'center',
+                              gap: 12,
+                              flexWrap: 'wrap',
                               background: '#ffffff',
                               border: '1px solid var(--border-subtle)',
-                              padding: '12px 16px',
-                              borderRadius: 10,
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                              padding: '14px 16px',
+                              borderRadius: 12,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                              transition: 'box-shadow var(--transition-fast)'
                             }}
                           >
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{service.name}</div>
-                              <div style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            <div style={{ flex: 1, minWidth: 180 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{service.name}</div>
+                                {activeQueue && waitingCount >= 0 && (
+                                  <span className={`queue-status queue-status-${waitLevel}`}>
+                                    <span className="queue-status-dot" />
+                                    {WAIT_LABELS[waitLevel]}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', gap: 16, fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                   <Users size={12} color="#f59e0b" /> {waitingCount} waiting
                                 </span>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <Clock size={12} color="#10b981" /> ~{estWait} mins wait
+                                  <Clock size={12} color="#10b981" /> ~{estWait} min wait
                                 </span>
                               </div>
                             </div>
@@ -588,21 +599,8 @@ export default function ExploreQueues({
 
       {/* Auth Required Modal */}
       {authRequiredService && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.5)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999,
-          padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 32, background: '#ffffff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', borderRadius: 20, textAlign: 'center' }}>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440, textAlign: 'center' }}>
             <div style={{
               width: 58,
               height: 58,
@@ -685,25 +683,12 @@ export default function ExploreQueues({
 
       {/* Join Live Queue Modal for Authenticated Customer */}
       {selectedService && user && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999,
-          padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 480, padding: 32, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '1.4rem', marginBottom: 6 }}>Join Live Queue</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 12 }}>
-              {selectedService.biz.name} — {selectedService.service.name}
-            </p>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <h3>Join Live Queue</h3>
+              <p>{selectedService.biz.name} — {selectedService.service.name}</p>
+            </div>
 
             <div style={{
               display: 'inline-flex',
@@ -792,7 +777,7 @@ export default function ExploreQueues({
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <div className="modal-footer">
               <button onClick={() => setSelectedService(null)} className="btn-secondary">Cancel</button>
               <button 
                 onClick={() => handleJoinQueue(selectedService.queue)} 

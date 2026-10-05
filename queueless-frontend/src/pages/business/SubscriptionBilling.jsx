@@ -52,15 +52,27 @@ export default function SubscriptionBilling() {
     }
   };
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Loading plans...</div>;
+  if (loading) {
+    return (
+      <div className="page-container" style={{ maxWidth: 1200 }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div className="skeleton skeleton-line medium" style={{ margin: '0 auto 12px', height: 32 }} />
+          <div className="skeleton skeleton-line long" style={{ margin: '0 auto', height: 16 }} />
+        </div>
+        <div className="grid-cols-4">
+          {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton skeleton-card" />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px' }}>
-      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+    <div className="page-container" style={{ maxWidth: 1200 }}>
+      <div className="page-header" style={{ textAlign: 'center', marginBottom: 40 }}>
         <h1 style={{ fontSize: '2.4rem', marginBottom: 12 }}>
-          Subscription & <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SaaS Plans</span>
+          Subscription &amp; <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SaaS Plans</span>
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '1rem', maxWidth: 600, margin: '0 auto' }}>
+        <p style={{ maxWidth: 600, margin: '0 auto' }}>
           Select the optimal plan to scale your physical queues, multi-branch coverage, and live analytics.
         </p>
       </div>
@@ -91,7 +103,8 @@ export default function SubscriptionBilling() {
                   fontWeight: 800,
                   padding: '4px 10px',
                   borderRadius: 20,
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em'
                 }}>
                   Active Plan
                 </div>

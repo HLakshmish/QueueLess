@@ -382,10 +382,10 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '100px 20px', color: 'var(--text-muted)' }}>
-        <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 16px', display: 'block', color: 'var(--accent-primary)' }} />
+      <div className="loading-screen">
+        <RefreshCw size={28} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />
         <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Loading Administrator Dashboard...</h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: 4 }}>Syncing businesses, users, subscription plans, and audit logs...</p>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Syncing businesses, users, subscription plans, and audit logs...</p>
       </div>
     );
   }
@@ -977,25 +977,8 @@ export default function AdminDashboard() {
           MODAL 1: CREATE / EDIT SUBSCRIPTION PLAN
          ======================================================== */}
       {planModalOpen && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: 20
-        }}>
-          <div className="glass-panel" style={{
-            maxWidth: 640,
-            width: '100%',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            padding: 32,
-            boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)'
-          }}>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 640 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <h3 style={{ fontSize: '1.4rem', fontWeight: 800 }}>
@@ -1210,23 +1193,8 @@ export default function AdminDashboard() {
           MODAL 2: MANAGE SUBSCRIBED BUSINESS USER
          ======================================================== */}
       {manageSubModalOpen && selectedSub && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: 20
-        }}>
-          <div className="glass-panel" style={{
-            maxWidth: 540,
-            width: '100%',
-            padding: 32,
-            boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)'
-          }}>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 540 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <h3 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Manage Business Subscription</h3>
@@ -1349,23 +1317,8 @@ export default function AdminDashboard() {
           MODAL 3: ASSIGN NEW SUBSCRIPTION TO BUSINESS
          ======================================================== */}
       {assignModalOpen && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: 20
-        }}>
-          <div className="glass-panel" style={{
-            maxWidth: 540,
-            width: '100%',
-            padding: 32,
-            boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)'
-          }}>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 540 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <h3 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Assign Subscription to Business</h3>

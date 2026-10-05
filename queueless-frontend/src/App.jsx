@@ -46,8 +46,10 @@ function MainApp() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-        Initializing QueueLess...
+      <div className="loading-screen" style={{ minHeight: '100vh' }}>
+        <div className="loading-spinner" />
+        <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>Initializing QueueLess...</p>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>Restoring your session</p>
       </div>
     );
   }
@@ -145,16 +147,16 @@ function MainApp() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer style={{
-        borderTop: '1px solid var(--border-subtle)',
-        background: '#ffffff',
-        padding: '24px 20px',
-        textAlign: 'center',
-        color: 'var(--text-dim)',
-        fontSize: '0.85rem'
-      }}>
-        QueueLess &copy; 2026. Universal Multi-Tenant Queue Management SaaS. Built with Fastify, PostgreSQL & React.
+      <footer className="app-footer">
+        <div className="app-footer-inner">
+          <div>
+            <div className="app-footer-brand">QueueLess</div>
+            <div className="app-footer-copy">Universal multi-tenant queue management platform</div>
+          </div>
+          <div className="app-footer-copy">
+            &copy; 2026 QueueLess. Built with Fastify, PostgreSQL &amp; React.
+          </div>
+        </div>
       </footer>
     </div>
   );

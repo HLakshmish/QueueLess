@@ -312,7 +312,16 @@ export default function BusinessDashboard() {
   };
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: 80, color: 'var(--text-muted)' }}>Loading live queue desk...</div>;
+    return (
+      <div className="page-container" style={{ maxWidth: 1320 }}>
+        <div className="skeleton skeleton-line short" style={{ marginBottom: 12 }} />
+        <div className="skeleton skeleton-line medium" style={{ marginBottom: 32 }} />
+        <div className="stat-grid-4" style={{ marginBottom: 24 }}>
+          {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 100 }} />)}
+        </div>
+        <div className="skeleton" style={{ height: 280, borderRadius: 16 }} />
+      </div>
+    );
   }
 
   if (!activeBusiness) {
@@ -554,8 +563,7 @@ export default function BusinessDashboard() {
         </div>
       )}
 
-      {/* Main Layout Grid matching Reference Mockup */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.2fr) minmax(0, 1fr)', gap: 24 }}>
+      <div className="dashboard-layout">
         {/* Left / Main Section */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           
@@ -573,27 +581,36 @@ export default function BusinessDashboard() {
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Live Active Customers</div>
-                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--text-main)', marginTop: 4 }}>{totalActive}</div>
+            <div className="stat-grid-4">
+              <div className="stat-card">
+                <div className="stat-card-label">
+                  Live Active Customers
+                  <Users size={16} color="var(--accent-primary)" />
+                </div>
+                <div className="stat-card-value">{totalActive}</div>
               </div>
 
-              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Avg. Wait Time</div>
-                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#007bff', marginTop: 4 }}>{avgWait}m</div>
+              <div className="stat-card">
+                <div className="stat-card-label">
+                  Avg. Wait Time
+                  <Clock size={16} color="#2563eb" />
+                </div>
+                <div className="stat-card-value" style={{ color: '#2563eb' }}>{avgWait}m</div>
               </div>
 
-              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Service Desk</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 10 }}>
+              <div className="stat-card">
+                <div className="stat-card-label">Service Desk</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 8 }}>
                   {selectedQueue?.service?.name || allServices[0]?.name || 'Main Desk'}
                 </div>
               </div>
 
-              <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Served</div>
-                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#16a34a', marginTop: 4 }}>
+              <div className="stat-card">
+                <div className="stat-card-label">
+                  Total Served
+                  <Check size={16} color="#16a34a" />
+                </div>
+                <div className="stat-card-value" style={{ color: '#16a34a' }}>
                   {entries.filter(e => e.status === 'SERVED').length}
                 </div>
               </div>
@@ -765,25 +782,12 @@ export default function BusinessDashboard() {
 
       {/* Add Walk-in Modal */}
       {showWalkInModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999,
-          padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 30, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '1.3rem', marginBottom: 6 }}>Add Walk-in Customer</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 18 }}>
-              Issue a token ticket directly from the receptionist desk.
-            </p>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3>Add Walk-in Customer</h3>
+              <p>Issue a token ticket directly from the receptionist desk.</p>
+            </div>
 
             {!selectedQueue?.id ? (
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
@@ -873,7 +877,7 @@ export default function BusinessDashboard() {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <div className="modal-footer">
                   <button type="button" onClick={() => setShowWalkInModal(false)} className="btn-secondary">Cancel</button>
                   <button type="submit" disabled={actionLoading} className="btn-primary">
                     {actionLoading ? 'Issuing...' : 'Issue Token'}

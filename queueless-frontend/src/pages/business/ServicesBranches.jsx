@@ -205,11 +205,11 @@ export default function ServicesBranches() {
   };
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
+    <div className="page-container" style={{ maxWidth: 1100 }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: '2rem' }}>Branches & Service Queues</h1>
-          <p style={{ color: 'var(--text-muted)' }}>
+          <h1>Branches &amp; Service Queues</h1>
+          <p>
             Configure physical branch locations, consultation desks, and estimated service durations.
           </p>
         </div>
@@ -225,12 +225,21 @@ export default function ServicesBranches() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading branches...</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {[1, 2].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 220, borderRadius: 16 }} />
+          ))}
+        </div>
       ) : branches.length === 0 ? (
-        <div className="glass-panel" style={{ padding: 48, textAlign: 'center' }}>
-          <Store size={44} style={{ opacity: 0.5, marginBottom: 12 }} />
+        <div className="glass-panel empty-state">
+          <div className="empty-state-icon">
+            <Store size={28} />
+          </div>
           <h3>No branches registered</h3>
-          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Add your first business location to start accepting queues.</p>
+          <p>Add your first business location to start accepting queues.</p>
+          <button onClick={() => setShowAddBranch(true)} className="btn-primary">
+            <Plus size={16} /> Add Branch
+          </button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -241,7 +250,7 @@ export default function ServicesBranches() {
                 <div>
                   <h3 style={{ fontSize: '1.35rem', fontWeight: 700 }}>{b.name}</h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
-                    <MapPin size={14} color="#818cf8" />
+                    <MapPin size={14} color="var(--accent-primary)" />
                     <span>{b.address}, {b.city}</span>
                   </div>
                 </div>
@@ -257,20 +266,8 @@ export default function ServicesBranches() {
                   </button>
                   <button
                     onClick={() => setDeletingBranch(b)}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '0.82rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      background: '#fff1f2',
-                      color: '#e11d48',
-                      border: '1px solid #fecdd3',
-                      borderRadius: 'var(--radius-md, 8px)',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      transition: 'all 0.15s ease'
-                    }}
+                    className="btn-danger"
+                    style={{ padding: '6px 12px', fontSize: '0.82rem' }}
                     title="Delete Branch Location"
                   >
                     <Trash2 size={13} /> Delete
@@ -281,7 +278,7 @@ export default function ServicesBranches() {
               {/* Services list */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h4 style={{ fontSize: '0.88rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+                  <h4 style={{ fontSize: '0.82rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
                     Offered Services ({b.services?.length || 0})
                   </h4>
                   <button
@@ -292,9 +289,9 @@ export default function ServicesBranches() {
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: '#007bff',
+                      color: 'var(--accent-primary)',
                       fontSize: '0.82rem',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -317,7 +314,6 @@ export default function ServicesBranches() {
                           border: '1px solid var(--border-subtle)', 
                           borderRadius: 12, 
                           padding: 16, 
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'space-between'
@@ -331,36 +327,16 @@ export default function ServicesBranches() {
                             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                               <button
                                 onClick={() => handleOpenEditService(svc)}
-                                style={{
-                                  background: '#ffffff',
-                                  border: '1px solid var(--border-subtle)',
-                                  borderRadius: 6,
-                                  padding: '5px',
-                                  cursor: 'pointer',
-                                  color: '#007bff',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  transition: 'background 0.15s ease'
-                                }}
+                                className="btn-secondary"
+                                style={{ padding: '5px 8px', fontSize: '0.75rem' }}
                                 title="Edit Service Desk"
                               >
                                 <Edit2 size={13} />
                               </button>
                               <button
                                 onClick={() => setDeletingService(svc)}
-                                style={{
-                                  background: '#fff1f2',
-                                  border: '1px solid #fecdd3',
-                                  borderRadius: 6,
-                                  padding: '5px',
-                                  cursor: 'pointer',
-                                  color: '#e11d48',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  transition: 'background 0.15s ease'
-                                }}
+                                className="btn-danger"
+                                style={{ padding: '5px 8px', fontSize: '0.75rem' }}
                                 title="Delete Service Desk"
                               >
                                 <Trash2 size={13} />
@@ -390,27 +366,26 @@ export default function ServicesBranches() {
 
       {/* Add Branch Modal */}
       {showAddBranch && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 30, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '1.3rem', marginBottom: 16 }}>Add Physical Branch</h3>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3>Add Physical Branch</h3>
+              <p>Register a new location for your business</p>
+            </div>
             <form onSubmit={handleCreateBranch}>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Branch Name</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Branch Name *</label>
                 <input className="form-input" placeholder="e.g. Indiranagar Outpatient Center" value={branchName} onChange={(e) => setBranchName(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Street Address</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Street Address *</label>
                 <input className="form-input" placeholder="e.g. 100 Feet Road" value={branchAddress} onChange={(e) => setBranchAddress(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>City</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>City *</label>
                 <input className="form-input" placeholder="e.g. Bengaluru" value={branchCity} onChange={(e) => setBranchCity(e.target.value)} required />
               </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <div className="modal-footer">
                 <button type="button" onClick={() => setShowAddBranch(false)} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={actionLoading} className="btn-primary">
                   {actionLoading ? 'Creating...' : 'Create Branch'}
@@ -423,27 +398,26 @@ export default function ServicesBranches() {
 
       {/* Edit Branch Modal */}
       {editingBranch && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 30, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '1.3rem', marginBottom: 16 }}>Edit Branch Location</h3>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3>Edit Branch Location</h3>
+              <p>Update physical address and branch name</p>
+            </div>
             <form onSubmit={handleUpdateBranch}>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Branch Name</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Branch Name *</label>
                 <input className="form-input" placeholder="e.g. Indiranagar Outpatient Center" value={editBranchName} onChange={(e) => setEditBranchName(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Street Address</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Street Address *</label>
                 <input className="form-input" placeholder="e.g. 100 Feet Road" value={editBranchAddress} onChange={(e) => setEditBranchAddress(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>City</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>City *</label>
                 <input className="form-input" placeholder="e.g. Bengaluru" value={editBranchCity} onChange={(e) => setEditBranchCity(e.target.value)} required />
               </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <div className="modal-footer">
                 <button type="button" onClick={() => setEditingBranch(null)} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={actionLoading} className="btn-primary">
                   {actionLoading ? 'Saving...' : 'Save Changes'}
@@ -456,12 +430,8 @@ export default function ServicesBranches() {
 
       {/* Delete Branch Confirmation Modal */}
       {deletingBranch && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 30, background: '#ffffff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', textAlign: 'center' }}>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440, textAlign: 'center' }}>
             <div style={{
               width: 52,
               height: 52,
@@ -481,23 +451,16 @@ export default function ServicesBranches() {
               Are you sure you want to delete <strong style={{ color: 'var(--text-main)' }}>"{deletingBranch.name}"</strong>? This will permanently delete this branch location along with all of its consultation desks and queues.
             </p>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <button type="button" onClick={() => setDeletingBranch(null)} className="btn-secondary" style={{ padding: '9px 18px' }}>
+            <div className="modal-footer" style={{ justifyContent: 'center' }}>
+              <button type="button" onClick={() => setDeletingBranch(null)} className="btn-secondary">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteBranch}
                 disabled={actionLoading}
-                style={{
-                  background: '#dc2626',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md, 8px)',
-                  padding: '9px 20px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
+                className="btn-danger"
+                style={{ background: '#dc2626', color: '#fff' }}
               >
                 {actionLoading ? 'Deleting...' : 'Yes, Delete Branch'}
               </button>
@@ -508,16 +471,15 @@ export default function ServicesBranches() {
 
       {/* Add Service Modal */}
       {showAddService && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 460, padding: 30, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '1.3rem', marginBottom: 16 }}>Add Service & Live Queue</h3>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 460 }}>
+            <div className="modal-header">
+              <h3>Add Service &amp; Live Queue</h3>
+              <p>Configure consultation desk and estimated duration</p>
+            </div>
             <form onSubmit={handleCreateService}>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Branch</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Branch *</label>
                 <select className="form-input" value={selectedBranchId} onChange={(e) => setSelectedBranchId(e.target.value)}>
                   {branches.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
@@ -525,18 +487,18 @@ export default function ServicesBranches() {
                 </select>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Service Name</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Service Name *</label>
                 <input className="form-input" placeholder="e.g. Pediatric Consultation" value={serviceName} onChange={(e) => setServiceName(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Description</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Description</label>
                 <input className="form-input" placeholder="e.g. Child health, routine vaccines" value={serviceDesc} onChange={(e) => setServiceDesc(e.target.value)} />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Avg Duration (mins per person)</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Avg Duration (mins per person) *</label>
                 <input type="number" min="1" max="180" className="form-input" value={avgDuration} onChange={(e) => setAvgDuration(e.target.value)} required />
               </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <div className="modal-footer">
                 <button type="button" onClick={() => setShowAddService(false)} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={actionLoading} className="btn-primary">
                   {actionLoading ? 'Adding...' : 'Add Service'}
@@ -549,27 +511,26 @@ export default function ServicesBranches() {
 
       {/* Edit Service Modal */}
       {editingService && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 460, padding: 30, background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '1.3rem', marginBottom: 16 }}>Edit Service Desk</h3>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 460 }}>
+            <div className="modal-header">
+              <h3>Edit Service Desk</h3>
+              <p>Update service details and estimated wait times</p>
+            </div>
             <form onSubmit={handleUpdateService}>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Service Name</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Service Name *</label>
                 <input className="form-input" placeholder="e.g. Pediatric Consultation" value={editServiceName} onChange={(e) => setEditServiceName(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Description</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Description</label>
                 <input className="form-input" placeholder="e.g. Child health, routine vaccines" value={editServiceDesc} onChange={(e) => setEditServiceDesc(e.target.value)} />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Avg Duration (mins per person)</label>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Avg Duration (mins per person) *</label>
                 <input type="number" min="1" max="180" className="form-input" value={editAvgDuration} onChange={(e) => setEditAvgDuration(e.target.value)} required />
               </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <div className="modal-footer">
                 <button type="button" onClick={() => setEditingService(null)} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={actionLoading} className="btn-primary">
                   {actionLoading ? 'Saving...' : 'Save Changes'}
@@ -582,12 +543,8 @@ export default function ServicesBranches() {
 
       {/* Delete Service Confirmation Modal */}
       {deletingService && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: 440, padding: 30, background: '#ffffff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', textAlign: 'center' }}>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440, textAlign: 'center' }}>
             <div style={{
               width: 52,
               height: 52,
@@ -607,23 +564,16 @@ export default function ServicesBranches() {
               Are you sure you want to delete service desk <strong style={{ color: 'var(--text-main)' }}>"{deletingService.name}"</strong>? This will permanently delete this service and its active queues and tickets.
             </p>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <button type="button" onClick={() => setDeletingService(null)} className="btn-secondary" style={{ padding: '9px 18px' }}>
+            <div className="modal-footer" style={{ justifyContent: 'center' }}>
+              <button type="button" onClick={() => setDeletingService(null)} className="btn-secondary">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteService}
                 disabled={actionLoading}
-                style={{
-                  background: '#dc2626',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md, 8px)',
-                  padding: '9px 20px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
+                className="btn-danger"
+                style={{ background: '#dc2626', color: '#fff' }}
               >
                 {actionLoading ? 'Deleting...' : 'Yes, Delete Service'}
               </button>

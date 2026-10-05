@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Calendar, CheckCircle, Clock } from 'lucide-react';
+import { Calendar, Clock, History, ChevronRight } from 'lucide-react';
 
 export default function QueueHistory({ onSelectTicket }) {
   const [history, setHistory] = useState([]);
@@ -23,54 +23,61 @@ export default function QueueHistory({ onSelectTicket }) {
   }, []);
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 20px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: '1.8rem' }}>Your Queue History</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-          Past visits, appointments, and token tickets.
-        </p>
+    <div className="page-container" style={{ maxWidth: 900 }}>
+      <div className="page-header">
+        <h1>Your Queue History</h1>
+        <p>Past visits, appointments, and token tickets.</p>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading history...</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 80, borderRadius: 16 }} />
+          ))}
+        </div>
       ) : history.length === 0 ? (
-        <div className="glass-panel" style={{ padding: 40, textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-muted)' }}>No queue entries recorded yet.</p>
+        <div className="glass-panel empty-state">
+          <div className="empty-state-icon">
+            <History size={26} />
+          </div>
+          <h3>No queue entries yet</h3>
+          <p>Your past queue visits and tickets will appear here once you join a queue.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {history.map((item) => (
-            <div 
-              key={item.id} 
-              className="glass-panel" 
-              style={{ 
-                padding: '16px 20px', 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                cursor: 'pointer'
-              }}
+        <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+          {history.map((item, index) => (
+            <div
+              key={item.id}
+              className="history-item"
+              style={{ borderBottom: index < history.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
               onClick={() => onSelectTicket(item.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && onSelectTicket(item.id)}
             >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#818cf8' }}>
-                    #{String(item.queueNumber).padStart(2, '0')}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span className="history-token">
+                    #Q-{String(item.queueNumber).padStart(2, '0')}
                   </span>
                   <span style={{ fontWeight: 600 }}>{item.queue?.service?.name}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: '0.82rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                   <span>{item.queue?.service?.branch?.business?.name}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Calendar size={12} color="#007bff" /> {new Date(item.queue?.date || item.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                    <Calendar size={12} color="var(--accent-primary)" />
+                    {new Date(item.queue?.date || item.createdAt).toLocaleDateString('en-US', {
+                      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+                    })}
                   </span>
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span className={`badge badge-${item.status.toLowerCase().replace('_', '-')}`}>
-                  {item.status}
+                  {item.status.replace('_', ' ')}
                 </span>
+                <ChevronRight size={18} color="var(--text-dim)" />
               </div>
             </div>
           ))}

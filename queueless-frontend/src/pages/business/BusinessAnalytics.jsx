@@ -25,68 +25,79 @@ export default function BusinessAnalytics() {
     loadStats();
   }, [activeBusiness]);
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Loading analytics...</div>;
+  if (loading) {
+    return (
+      <div className="page-container" style={{ maxWidth: 1100 }}>
+        <div className="skeleton skeleton-line short" style={{ marginBottom: 12 }} />
+        <div className="skeleton skeleton-line medium" style={{ marginBottom: 32 }} />
+        <div className="stat-grid-4" style={{ marginBottom: 28 }}>
+          {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 110 }} />)}
+        </div>
+        <div className="skeleton" style={{ height: 260, borderRadius: 16 }} />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: '2rem' }}>Queue & Operational Analytics</h1>
-        <p style={{ color: 'var(--text-muted)' }}>
+    <div className="page-container" style={{ maxWidth: 1100 }}>
+      <div className="page-header">
+        <h1>Queue &amp; Operational Analytics</h1>
+        <p>
           Real-time metrics, throughput, wait time performance, and customer retention.
         </p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid-cols-4" style={{ marginBottom: 28 }}>
-        <div className="glass-panel" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Served Customers</span>
+      <div className="stat-grid-4" style={{ marginBottom: 28 }}>
+        <div className="stat-card">
+          <div className="stat-card-label">
+            Served Customers
             <CheckCircle2 size={18} color="#10b981" />
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800 }}>{stats?.totalServed || 0}</div>
-          <div style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+          <div className="stat-card-value">{stats?.totalServed || 0}</div>
+          <div style={{ fontSize: '0.78rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontWeight: 600 }}>
             <TrendingUp size={12} /> {stats?.completionRate || 100}% Completion rate
           </div>
         </div>
 
-        <div className="glass-panel" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Currently Waiting</span>
+        <div className="stat-card">
+          <div className="stat-card-label">
+            Currently Waiting
             <Users size={18} color="#f59e0b" />
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#d97706' }}>{stats?.totalWaiting || 0}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>Active in live queues</div>
+          <div className="stat-card-value" style={{ color: '#d97706' }}>{stats?.totalWaiting || 0}</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>Active in live queues</div>
         </div>
 
-        <div className="glass-panel" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Avg Wait Time</span>
-            <Clock size={18} color="#4f46e5" />
+        <div className="stat-card">
+          <div className="stat-card-label">
+            Avg Wait Time
+            <Clock size={18} color="var(--accent-primary)" />
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#4f46e5' }}>{stats?.averageWaitMinutes || 14}m</div>
-          <div style={{ fontSize: '0.75rem', color: '#059669', marginTop: 4 }}>Target: Under 20 mins</div>
+          <div className="stat-card-value" style={{ color: 'var(--accent-primary)' }}>{stats?.averageWaitMinutes || 14}m</div>
+          <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: 4, fontWeight: 600 }}>Target: Under 20 mins</div>
         </div>
 
-        <div className="glass-panel" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Cancellations / Skips</span>
+        <div className="stat-card">
+          <div className="stat-card-label">
+            Cancellations / Skips
             <XCircle size={18} color="#e11d48" />
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#e11d48' }}>
+          <div className="stat-card-value" style={{ color: '#e11d48' }}>
             {(stats?.totalCancelled || 0) + (stats?.totalSkipped || 0)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 4 }}>Low abandonment</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: 4 }}>Low abandonment</div>
         </div>
       </div>
 
       {/* Hourly Flow Chart Representation */}
       <div className="glass-panel" style={{ padding: 28 }}>
-        <h3 style={{ fontSize: '1.2rem', marginBottom: 16 }}>Peak Hours Throughput</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 24 }}>
+        <h3 style={{ fontSize: '1.25rem', marginBottom: 6 }}>Peak Hours Throughput</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 24 }}>
           Hourly queue volume and staff desk processing rate.
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 180, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10, overflowX: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 190, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10, overflowX: 'auto' }}>
           {(() => {
             const dist = stats?.hourlyDistribution || Array(24).fill(0);
             const maxVal = Math.max(...dist, 1);
@@ -97,15 +108,15 @@ export default function BusinessAnalytics() {
               const label = `${String(h).padStart(2, '0')}:00`;
               return (
                 <div key={h} style={{ flex: 1, minWidth: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#4f46e5', fontWeight: 700, marginBottom: 4 }}>{count}</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 700, marginBottom: 4 }}>{count}</span>
                   <div style={{
                     width: '100%',
                     maxWidth: 32,
                     height: `${heightPct}%`,
-                    background: 'linear-gradient(180deg, #4f46e5 0%, #c7d2fe 100%)',
+                    background: 'var(--accent-gradient)',
                     borderRadius: '6px 6px 0 0'
                   }} />
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: 8 }}>{label}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: 8, fontWeight: 600 }}>{label}</span>
                 </div>
               );
             });

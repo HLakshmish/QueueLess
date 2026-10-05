@@ -11,13 +11,28 @@ import {
   BarChart3,
   CreditCard,
   Sparkles,
-  Bell
+  Bell,
+  Menu,
+  X
 } from 'lucide-react';
+
+function NavButton({ active, onClick, children, accent }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`nav-link${active ? ' active' : ''}${accent && !active ? ' nav-link-accent' : ''}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function Navbar({ currentView, setCurrentView }) {
   const { user, role, logout } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const notifRef = React.useRef(null);
 
   useEffect(() => {
     if (user) {
@@ -28,6 +43,21 @@ export default function Navbar({ currentView, setCurrentView }) {
       setNotifications([]);
     }
   }, [user]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setShowNotifMenu(false);
+  }, [currentView]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setShowNotifMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function loadNotifications() {
     try {
@@ -49,32 +79,69 @@ export default function Navbar({ currentView, setCurrentView }) {
     }
   };
 
+  const navigate = (view) => {
+    setCurrentView(view);
+    setMobileOpen(false);
+  };
+
   const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const customerLinks = (
+    <>
+      <NavButton active={currentView === 'explore'} onClick={() => navigate('explore')}>
+        <Store size={16} /> Discover Queues
+      </NavButton>
+      <NavButton active={currentView === 'my-ticket'} onClick={() => navigate('my-ticket')}>
+        <Ticket size={16} /> My Ticket
+      </NavButton>
+      <NavButton active={currentView === 'history'} onClick={() => navigate('history')}>
+        <Clock size={16} /> History
+      </NavButton>
+      <NavButton active={currentView === 'join-business'} onClick={() => navigate('join-business')} accent>
+        <Sparkles size={15} /> Join as Business
+      </NavButton>
+    </>
+  );
+
+  const businessLinks = (
+    <>
+      <NavButton active={currentView === 'business-desk'} onClick={() => navigate('business-desk')}>
+        <Layers size={16} /> Queue Desk
+      </NavButton>
+      <NavButton active={currentView === 'services'} onClick={() => navigate('services')}>
+        <Store size={16} /> Services & Counters
+      </NavButton>
+      <NavButton active={currentView === 'business-analytics'} onClick={() => navigate('business-analytics')}>
+        <BarChart3 size={16} /> Live Analytics
+      </NavButton>
+      <NavButton active={currentView === 'subscription'} onClick={() => navigate('subscription')}>
+        <CreditCard size={16} /> Billing Plan
+      </NavButton>
+    </>
+  );
+
+  const adminLinks = (
+    <NavButton active={currentView === 'admin-dashboard'} onClick={() => navigate('admin-dashboard')}>
+      <ShieldCheck size={16} /> Admin Command Center
+    </NavButton>
+  );
+
+  const roleLinks = role === 'CUSTOMER' ? customerLinks : role === 'BUSINESS_USER' ? businessLinks : role === 'APPLICATION_MANAGER' ? adminLinks : null;
 
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-
-      {/* TIER 2: MAIN NAVIGATION BAR */}
       <nav style={{
         borderBottom: '1px solid var(--border-subtle)',
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(20px)',
-        padding: '12px 24px',
-        boxShadow: '0 4px 20px -4px rgba(15, 23, 42, 0.05)'
+        background: 'rgba(255, 255, 255, 0.97)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'var(--shadow-nav)'
       }}>
-        <div style={{
-          maxWidth: 1350,
-          margin: '0 auto',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 20
-        }}>
-
-          {/* LEFT: BRAND LOGO */}
+        <div className="navbar-inner" style={{ padding: '12px 20px' }}>
+          {/* Brand */}
           <div
             style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flexShrink: 0 }}
-            onClick={() => setCurrentView('explore')}
+            onClick={() => navigate('explore')}
           >
             <div style={{
               width: 40,
@@ -84,119 +151,51 @@ export default function Navbar({ currentView, setCurrentView }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 15px rgba(37, 99, 235, 0.35)'
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
             }}>
               <Clock size={22} color="#fff" />
             </div>
             <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, letterSpacing: '-0.02em', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1 }}>
+              <div style={{
+                fontSize: '1.25rem',
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                background: 'var(--accent-gradient)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                lineHeight: 1.1
+              }}>
                 QueueLess
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+              <div style={{
+                fontSize: '0.68rem',
+                color: 'var(--text-dim)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                fontWeight: 600
+              }}>
                 Digital Queue System
               </div>
             </div>
           </div>
 
-          {/* CENTER: MAIN NAVIGATION TABS */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {role === 'CUSTOMER' && (
-              <>
-                <button
-                  onClick={() => setCurrentView('explore')}
-                  className={currentView === 'explore' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <Store size={16} /> Discover Queues
-                </button>
-                <button
-                  onClick={() => setCurrentView('my-ticket')}
-                  className={currentView === 'my-ticket' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <Ticket size={16} /> My Ticket
-                </button>
-                <button
-                  onClick={() => setCurrentView('history')}
-                  className={currentView === 'history' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <Clock size={16} /> History
-                </button>
-                <button
-                  onClick={() => setCurrentView('join-business')}
-                  className={currentView === 'join-business' ? 'btn-primary' : 'btn-secondary'}
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '0.9rem',
-                    borderRadius: 20,
-                    borderColor: currentView === 'join-business' ? 'transparent' : '#c7d2fe',
-                    color: currentView === 'join-business' ? '#fff' : '#4f46e5',
-                    background: currentView === 'join-business' ? 'var(--accent-gradient)' : '#ede9fe',
-                    fontWeight: 700
-                  }}
-                >
-                  <Sparkles size={15} /> Join as Business
-                </button>
-              </>
-            )}
+          {/* Desktop nav */}
+          {roleLinks && (
+            <div className="navbar-nav navbar-nav-desktop">
+              {roleLinks}
+            </div>
+          )}
 
-            {role === 'BUSINESS_USER' && (
-              <>
-                <button
-                  onClick={() => setCurrentView('business-desk')}
-                  className={currentView === 'business-desk' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <Layers size={16} /> Queue Desk
-                </button>
-                <button
-                  onClick={() => setCurrentView('services')}
-                  className={currentView === 'services' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <Store size={16} /> Services & Counters
-                </button>
-                <button
-                  onClick={() => setCurrentView('business-analytics')}
-                  className={currentView === 'business-analytics' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <BarChart3 size={16} /> Live Analytics
-                </button>
-                <button
-                  onClick={() => setCurrentView('subscription')}
-                  className={currentView === 'subscription' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <CreditCard size={16} /> Billing Plan
-                </button>
-              </>
-            )}
-
-            {role === 'APPLICATION_MANAGER' && (
-              <>
-                <button
-                  onClick={() => setCurrentView('admin-dashboard')}
-                  className={currentView === 'admin-dashboard' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: 20 }}
-                >
-                  <ShieldCheck size={16} /> Admin Command Center
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* RIGHT: USER PROFILE & NOTIFICATION ACTIONS */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          {/* Actions */}
+          <div className="navbar-actions">
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {/* Notification Bell */}
-                <div style={{ position: 'relative' }}>
+              <>
+                <div ref={notifRef} style={{ position: 'relative' }}>
                   <button
                     onClick={() => setShowNotifMenu(!showNotifMenu)}
+                    aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
                     style={{
-                      background: '#f1f5f9',
+                      background: unreadCount > 0 ? '#eef2ff' : 'var(--bg-muted)',
                       border: '1px solid var(--border-subtle)',
                       borderRadius: '50%',
                       width: 38,
@@ -204,11 +203,11 @@ export default function Navbar({ currentView, setCurrentView }) {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: unreadCount > 0 ? '#4f46e5' : 'var(--text-muted)',
+                      color: unreadCount > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
                       position: 'relative',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      transition: 'all var(--transition-fast)'
                     }}
-                    title="Notifications"
                   >
                     <Bell size={18} />
                     {unreadCount > 0 && (
@@ -232,7 +231,6 @@ export default function Navbar({ currentView, setCurrentView }) {
                     )}
                   </button>
 
-                  {/* Notifications Dropdown */}
                   {showNotifMenu && (
                     <div style={{
                       position: 'absolute',
@@ -242,33 +240,45 @@ export default function Navbar({ currentView, setCurrentView }) {
                       background: '#ffffff',
                       border: '1px solid var(--border-subtle)',
                       borderRadius: 14,
-                      boxShadow: '0 15px 35px -5px rgba(0, 0, 0, 0.15)',
+                      boxShadow: 'var(--shadow-elevated)',
                       zIndex: 200,
-                      padding: 16
+                      padding: 16,
+                      animation: 'slideUp 0.2s ease'
                     }}>
-                      <div style={{ fontWeight: 800, fontSize: '0.92rem', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{
+                        fontWeight: 800,
+                        fontSize: '0.92rem',
+                        marginBottom: 10,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
                         <span>Notifications</span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{notifications.length} total</span>
                       </div>
 
                       {notifications.length === 0 ? (
-                        <div style={{ color: 'var(--text-dim)', fontSize: '0.82rem', textAlign: 'center', padding: '16px 0' }}>
-                          No notifications yet.
+                        <div className="empty-state" style={{ padding: '20px 0' }}>
+                          <p style={{ color: 'var(--text-dim)', fontSize: '0.82rem' }}>No notifications yet.</p>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
                           {notifications.map(n => (
                             <div
                               key={n.id}
+                              role="button"
+                              tabIndex={0}
                               style={{
                                 background: n.isRead ? '#f8fafc' : '#eef2ff',
                                 border: `1px solid ${n.isRead ? 'var(--border-subtle)' : '#c7d2fe'}`,
                                 padding: 10,
                                 borderRadius: 8,
                                 fontSize: '0.82rem',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                transition: 'background var(--transition-fast)'
                               }}
                               onClick={() => handleMarkRead(n.id)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleMarkRead(n.id)}
                             >
                               <div style={{ fontWeight: 700, color: n.isRead ? 'var(--text-main)' : '#3730a3' }}>
                                 {n.title}
@@ -282,13 +292,12 @@ export default function Navbar({ currentView, setCurrentView }) {
                   )}
                 </div>
 
-                {/* User Info Pill */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
                   padding: '4px 12px 4px 5px',
-                  background: '#f8fafc',
+                  background: 'var(--bg-muted)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 24
                 }}>
@@ -296,18 +305,17 @@ export default function Navbar({ currentView, setCurrentView }) {
                     width: 30,
                     height: 30,
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
+                    background: 'var(--accent-gradient)',
                     color: '#ffffff',
                     fontSize: '0.82rem',
                     fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
+                    justifyContent: 'center'
                   }}>
                     {user.fullName ? user.fullName[0].toUpperCase() : 'U'}
                   </div>
-                  <div style={{ textAlign: 'left' }}>
+                  <div style={{ textAlign: 'left', display: 'none' }} className="navbar-user-info">
                     <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.2 }}>
                       {user.fullName}
                     </div>
@@ -319,8 +327,9 @@ export default function Navbar({ currentView, setCurrentView }) {
 
                 <button
                   onClick={logout}
+                  aria-label="Sign out"
                   style={{
-                    background: '#f1f5f9',
+                    background: 'var(--bg-muted)',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: '50%',
                     width: 38,
@@ -329,26 +338,49 @@ export default function Navbar({ currentView, setCurrentView }) {
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: 'var(--text-muted)',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)'
                   }}
-                  title="Sign out"
                 >
                   <LogOut size={16} />
                 </button>
-              </div>
+              </>
             ) : (
               <button
-                onClick={() => setCurrentView('login')}
+                onClick={() => navigate('login')}
                 className="btn-primary"
                 style={{ padding: '8px 18px', fontSize: '0.88rem', borderRadius: 20 }}
               >
                 Sign In
               </button>
             )}
-          </div>
 
+            {roleLinks && (
+              <button
+                className="mobile-menu-toggle"
+                onClick={() => setMobileOpen(!mobileOpen)}
+                aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+                aria-expanded={mobileOpen}
+              >
+                {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Mobile drawer */}
+        {roleLinks && (
+          <div className={`mobile-nav-drawer${mobileOpen ? ' open' : ''}`}>
+            {roleLinks}
+          </div>
+        )}
       </nav>
+
+      <style>{`
+        @media (min-width: 768px) {
+          .navbar-user-info { display: block !important; }
+        }
+      `}</style>
     </header>
   );
 }

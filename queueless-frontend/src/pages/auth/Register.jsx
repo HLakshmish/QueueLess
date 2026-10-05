@@ -287,13 +287,6 @@ export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess
             </button>
           </div>
 
-
-
-
-
-
-
-
           {error && (
             <div style={{
               background: 'rgba(244, 63, 94, 0.1)',

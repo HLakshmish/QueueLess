@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { subscribeToQueue } from '../../services/socket';
-import { Clock, Users, CheckCircle, XCircle, Bell, MapPin, Building, Sparkles, Calendar } from 'lucide-react';
+import { Clock, Users, CheckCircle, XCircle, Bell, MapPin, Building, Sparkles, Calendar, Ticket } from 'lucide-react';
+
+function getQueueWaitLevel(peopleAhead, estimatedWait) {
+  if (peopleAhead <= 2 || estimatedWait <= 15) return 'low';
+  if (peopleAhead <= 8 || estimatedWait <= 45) return 'moderate';
+  return 'busy';
+}
+
+const WAIT_LABELS = {
+  low: 'Available / Low Wait',
+  moderate: 'Moderate Wait',
+  busy: 'Busy',
+};
 
 export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
   const [entry, setEntry] = useState(null);
@@ -21,7 +33,6 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
     try {
       const res = await api.getCustomerHistory();
       if (res.success && res.data) {
-        // Find latest active entry
         const active = res.data.find((e) => ['WAITING', 'CALLED', 'CHECKED_IN', 'SERVING'].includes(e.status));
         if (active) {
           loadTicket(active.id);
@@ -48,13 +59,10 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
     }
   }
 
-  // Subscribe to real-time WebSocket events for this queue
   useEffect(() => {
     if (!entry?.queueId) return;
 
-    const unsubscribe = subscribeToQueue(entry.queueId, (msg) => {
-      console.log('Real-time WS event received in Ticket view:', msg);
-      // Refresh current entry data
+    const unsubscribe = subscribeToQueue(entry.queueId, () => {
       if (entry.id) {
         loadTicket(entry.id);
       }
@@ -96,21 +104,31 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: 80, color: 'var(--text-muted)' }}>
-        Retrieving your digital queue pass...
+      <div className="page-container" style={{ maxWidth: 650 }}>
+        <div className="glass-panel" style={{ padding: 36 }}>
+          <div className="skeleton skeleton-line short" />
+          <div className="skeleton skeleton-line medium" style={{ marginTop: 16 }} />
+          <div className="skeleton" style={{ height: 120, margin: '32px 0', borderRadius: 16 }} />
+          <div className="stat-grid-2">
+            <div className="skeleton" style={{ height: 100 }} />
+            <div className="skeleton" style={{ height: 100 }} />
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!entry || ['SERVED', 'CANCELLED'].includes(entry.status)) {
     return (
-      <div style={{ maxWidth: 600, margin: '60px auto', textAlign: 'center' }} className="glass-panel">
-        <div style={{ padding: 48 }}>
-          <Sparkles size={48} color="#818cf8" style={{ marginBottom: 16 }} />
-          <h2 style={{ fontSize: '1.8rem', marginBottom: 8 }}>No Active Queue Entry</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>
-            {entry?.status === 'SERVED' 
-              ? 'Your previous service was successfully completed! Have a wonderful day.' 
+      <div className="page-container" style={{ maxWidth: 600 }}>
+        <div className="glass-panel empty-state">
+          <div className="empty-state-icon">
+            <Sparkles size={28} />
+          </div>
+          <h2 style={{ fontSize: '1.6rem' }}>No Active Queue Entry</h2>
+          <p>
+            {entry?.status === 'SERVED'
+              ? 'Your previous service was successfully completed! Have a wonderful day.'
               : 'You are currently not in any live business queues.'}
           </p>
           <button onClick={onSelectExplore} className="btn-primary">
@@ -124,56 +142,59 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
   const isCalled = entry.status === 'CALLED';
   const isServing = entry.status === 'SERVING';
   const isCheckedIn = entry.status === 'CHECKED_IN';
+  const peopleAhead = entry.peopleAhead || 0;
+  const estimatedWait = entry.estimatedWaitMinutes || 0;
+  const waitLevel = getQueueWaitLevel(peopleAhead, estimatedWait);
+
+  const servingEstimate = Math.max(1, entry.queueNumber - peopleAhead - 1);
+  const progressSpan = Math.max(entry.queueNumber - servingEstimate, 1);
+  const progressPercent = isCalled || isServing
+    ? 100
+    : Math.min(95, Math.max(5, ((entry.queueNumber - servingEstimate - peopleAhead) / progressSpan) * 100));
 
   return (
-    <div style={{ maxWidth: 650, margin: '40px auto', padding: '0 20px' }}>
-      {/* Alert banner if called */}
+    <div className="page-container" style={{ maxWidth: 650, paddingTop: 24 }}>
       {isCalled && (
-        <div style={{
-          background: 'linear-gradient(135deg, #eef2ff, #fdf4ff)',
-          border: '2px solid #6366f1',
-          borderRadius: 16,
-          padding: 20,
-          marginBottom: 24,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          animation: 'pulse 1.5s infinite',
-          boxShadow: '0 10px 25px -5px rgba(99, 102, 241, 0.2)'
-        }}>
-          <Bell size={32} color="#4f46e5" />
+        <div className="alert alert-info" style={{ animation: 'pulse 1.5s infinite', borderWidth: 2 }}>
+          <Bell size={28} style={{ flexShrink: 0 }} />
           <div>
-            <h3 style={{ fontSize: '1.25rem', color: '#1e1b4b' }}>IT'S YOUR TURN!</h3>
-            <p style={{ fontSize: '0.9rem', color: '#3730a3', marginTop: 2 }}>
+            <h3 style={{ fontSize: '1.2rem', color: '#1e1b4b', marginBottom: 4 }}>It&apos;s your turn!</h3>
+            <p style={{ fontSize: '0.88rem', color: '#3730a3' }}>
               Please proceed immediately to the service desk. The business is ready for you.
             </p>
           </div>
         </div>
       )}
 
-      {/* Main Digital Ticket Card */}
-      <div className="glass-panel-glow" style={{ padding: 36, position: 'relative', overflow: 'hidden' }}>
-        {/* Subtle decorative glow */}
+      <div className="glass-panel-glow" style={{ padding: 32, position: 'relative', overflow: 'hidden' }}>
         <div style={{
           position: 'absolute',
-          top: -100,
-          right: -100,
-          width: 250,
-          height: 250,
+          top: -80,
+          right: -80,
+          width: 200,
+          height: 200,
           borderRadius: '50%',
-          background: 'rgba(99, 102, 241, 0.06)',
-          filter: 'blur(60px)',
+          background: 'rgba(99, 102, 241, 0.05)',
+          filter: 'blur(50px)',
           pointerEvents: 'none'
         }} />
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px dashed var(--border-subtle)', paddingBottom: 20 }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          borderBottom: '1px dashed var(--border-subtle)',
+          paddingBottom: 20,
+          gap: 12,
+          flexWrap: 'wrap'
+        }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Building size={14} color="#007bff" />
-              <span style={{ fontWeight: 600 }}>{entry.queue?.service?.branch?.business?.name || 'Apex Health Clinic'}</span>
+              <Building size={14} color="var(--accent-primary)" />
+              <span style={{ fontWeight: 600 }}>{entry.queue?.service?.branch?.business?.name || 'Business'}</span>
             </div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: 4 }}>
+            <h2 style={{ fontSize: '1.45rem', marginTop: 4 }}>
               {entry.queue?.service?.name || 'General Consultation'}
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-dim)', fontSize: '0.82rem', marginTop: 4 }}>
@@ -181,68 +202,75 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
               <span>{entry.queue?.service?.branch?.name}, {entry.queue?.service?.branch?.city}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: 5 }}>
-              <Calendar size={13} color="#007bff" />
-              <span>Queue Date: <strong style={{ color: 'var(--text-main)' }}>{new Date(entry.queue?.date || entry.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong></span>
+              <Calendar size={13} color="var(--accent-primary)" />
+              <span>
+                Queue Date:{' '}
+                <strong style={{ color: 'var(--text-main)' }}>
+                  {new Date(entry.queue?.date || entry.createdAt).toLocaleDateString('en-US', {
+                    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+                  })}
+                </strong>
+              </span>
             </div>
           </div>
 
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
             <span className={`badge badge-${entry.status.toLowerCase().replace('_', '-')}`}>
-              {entry.status}
+              {entry.status.replace('_', ' ')}
             </span>
+            {!isCalled && !isServing && (
+              <span className={`queue-status queue-status-${waitLevel}`}>
+                <span className="queue-status-dot" />
+                {WAIT_LABELS[waitLevel]}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Center: Hero Queue Number with Ticket Notch Styling */}
-        <div style={{ textAlign: 'center', padding: '36px 0', background: 'radial-gradient(ellipse at center, rgba(37,99,235,0.05) 0%, transparent 70%)' }}>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
-            Your Token Number
+        {/* Position hero */}
+        <div className="position-hero">
+          <div className="position-hero-label">Your Position</div>
+          <div className="position-hero-number">
+            #{String(entry.queueNumber).padStart(2, '0')}
           </div>
-          <div className="queue-number-hero animate-float">
-            #Q-{String(entry.queueNumber).padStart(3, '0')}
-          </div>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginTop: 8 }}>
-            Ticket Holder: <strong style={{ color: 'var(--text-main)', fontWeight: 700 }}>{entry.customerName}</strong>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 10 }}>
+            Ticket <strong style={{ color: 'var(--text-main)' }}>#Q-{String(entry.queueNumber).padStart(3, '0')}</strong>
+            {' · '}
+            {entry.customerName}
           </div>
         </div>
 
-        {/* Live Wait Info Grid */}
-        <div className="grid-cols-2" style={{ marginBottom: 24 }}>
-          <div style={{
-            background: '#ffffff',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 16,
-            padding: 20,
-            textAlign: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
-              <Users size={24} color="#f59e0b" />
+        {/* Queue progress */}
+        {!isCalled && !isServing && peopleAhead > 0 && (
+          <div className="queue-progress">
+            <div className="queue-progress-labels">
+              <span>Serving ~#{servingEstimate}</span>
+              <span>You are #{entry.queueNumber}</span>
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#d97706' }}>
-              {entry.peopleAhead || 0}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-              People Ahead of You
+            <div className="queue-progress-track">
+              <div className="queue-progress-fill" style={{ width: `${progressPercent}%` }} />
+              <div className="queue-progress-marker" style={{ left: `${progressPercent}%` }} />
             </div>
           </div>
+        )}
 
-          <div style={{
-            background: '#ffffff',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 16,
-            padding: 20,
-            textAlign: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
-              <Clock size={24} color="#10b981" />
+        {/* Stats */}
+        <div className="stat-grid-2" style={{ marginBottom: 24 }}>
+          <div className="stat-card" style={{ textAlign: 'center' }}>
+            <div className="stat-card-label" style={{ justifyContent: 'center' }}>
+              <Users size={18} color="#f59e0b" />
+              People Ahead
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0d9488' }}>
-              ~{entry.estimatedWaitMinutes || 0}m
+            <div className="stat-card-value" style={{ color: '#d97706' }}>{peopleAhead}</div>
+          </div>
+
+          <div className="stat-card" style={{ textAlign: 'center' }}>
+            <div className="stat-card-label" style={{ justifyContent: 'center' }}>
+              <Clock size={18} color="#10b981" />
+              Estimated Wait
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-              Estimated Waiting Time
+            <div className="stat-card-value" style={{ color: '#0d9488', fontSize: '1.75rem' }}>
+              ~{estimatedWait} min
             </div>
           </div>
         </div>
@@ -250,8 +278,8 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
         {/* Actions */}
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           {!isCheckedIn && !isServing && (
-            <button 
-              onClick={handleCheckIn} 
+            <button
+              onClick={handleCheckIn}
               disabled={actionLoading}
               className="btn-success"
               style={{ padding: '12px 24px', fontSize: '0.95rem' }}
@@ -260,8 +288,8 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
             </button>
           )}
 
-          <button 
-            onClick={handleCancel} 
+          <button
+            onClick={handleCancel}
             disabled={actionLoading}
             className="btn-danger"
             style={{ padding: '12px 24px', fontSize: '0.95rem' }}
@@ -270,6 +298,11 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
           </button>
         </div>
       </div>
+
+      <p style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.78rem', marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <Ticket size={13} />
+        Updates automatically in real time when the queue moves
+      </p>
     </div>
   );
 }

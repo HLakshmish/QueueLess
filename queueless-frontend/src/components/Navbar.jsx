@@ -131,11 +131,11 @@ export default function Navbar({ currentView, setCurrentView }) {
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
       <nav style={{
-        borderBottom: '1px solid var(--border-subtle)',
-        background: 'rgba(255, 255, 255, 0.97)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: 'var(--shadow-nav)'
+        borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+        background: 'linear-gradient(180deg, #1e294b 0%, #141c38 100%)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        boxShadow: '0 8px 28px -4px rgba(15, 23, 42, 0.35)'
       }}>
         <div className="navbar-inner" style={{ padding: '12px 20px' }}>
           {/* Brand */}
@@ -147,32 +147,30 @@ export default function Navbar({ currentView, setCurrentView }) {
               width: 40,
               height: 40,
               borderRadius: 12,
-              background: 'var(--accent-gradient)',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+              boxShadow: '0 4px 18px rgba(59, 130, 246, 0.45)'
             }}>
               <Clock size={22} color="#fff" />
             </div>
             <div>
               <div style={{
-                fontSize: '1.25rem',
-                fontWeight: 800,
+                fontSize: '1.28rem',
+                fontWeight: 850,
                 letterSpacing: '-0.02em',
-                background: 'var(--accent-gradient)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: '#ffffff',
                 lineHeight: 1.1
               }}>
                 QueueLess
               </div>
               <div style={{
                 fontSize: '0.68rem',
-                color: 'var(--text-dim)',
+                color: '#94a3b8',
                 textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                fontWeight: 600
+                letterSpacing: '0.09em',
+                fontWeight: 700
               }}>
                 Digital Queue System
               </div>
@@ -195,15 +193,15 @@ export default function Navbar({ currentView, setCurrentView }) {
                     onClick={() => setShowNotifMenu(!showNotifMenu)}
                     aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
                     style={{
-                      background: unreadCount > 0 ? '#eef2ff' : 'var(--bg-muted)',
-                      border: '1px solid var(--border-subtle)',
+                      background: unreadCount > 0 ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                      border: `1px solid ${unreadCount > 0 ? 'rgba(129, 140, 248, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
                       borderRadius: '50%',
                       width: 38,
                       height: 38,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: unreadCount > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
+                      color: unreadCount > 0 ? '#818cf8' : '#cbd5e1',
                       position: 'relative',
                       cursor: 'pointer',
                       transition: 'all var(--transition-fast)'
@@ -224,7 +222,8 @@ export default function Navbar({ currentView, setCurrentView }) {
                         fontWeight: 800,
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
                       }}>
                         {unreadCount}
                       </span>
@@ -237,13 +236,14 @@ export default function Navbar({ currentView, setCurrentView }) {
                       right: 0,
                       top: 46,
                       width: 320,
-                      background: '#ffffff',
-                      border: '1px solid var(--border-subtle)',
+                      background: '#1a2340',
+                      border: '1px solid rgba(255, 255, 255, 0.16)',
                       borderRadius: 14,
-                      boxShadow: 'var(--shadow-elevated)',
+                      boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08)',
                       zIndex: 200,
                       padding: 16,
-                      animation: 'slideUp 0.2s ease'
+                      animation: 'slideUp 0.2s ease',
+                      color: '#f8fafc'
                     }}>
                       <div style={{
                         fontWeight: 800,
@@ -254,12 +254,12 @@ export default function Navbar({ currentView, setCurrentView }) {
                         alignItems: 'center'
                       }}>
                         <span>Notifications</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{notifications.length} total</span>
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{notifications.length} total</span>
                       </div>
 
                       {notifications.length === 0 ? (
                         <div className="empty-state" style={{ padding: '20px 0' }}>
-                          <p style={{ color: 'var(--text-dim)', fontSize: '0.82rem' }}>No notifications yet.</p>
+                          <p style={{ color: '#94a3b8', fontSize: '0.82rem' }}>No notifications yet.</p>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
@@ -269,8 +269,8 @@ export default function Navbar({ currentView, setCurrentView }) {
                               role="button"
                               tabIndex={0}
                               style={{
-                                background: n.isRead ? '#f8fafc' : '#eef2ff',
-                                border: `1px solid ${n.isRead ? 'var(--border-subtle)' : '#c7d2fe'}`,
+                                background: n.isRead ? 'rgba(255, 255, 255, 0.04)' : 'rgba(99, 102, 241, 0.18)',
+                                border: `1px solid ${n.isRead ? 'rgba(255, 255, 255, 0.08)' : 'rgba(129, 140, 248, 0.4)'}`,
                                 padding: 10,
                                 borderRadius: 8,
                                 fontSize: '0.82rem',
@@ -280,10 +280,10 @@ export default function Navbar({ currentView, setCurrentView }) {
                               onClick={() => handleMarkRead(n.id)}
                               onKeyDown={(e) => e.key === 'Enter' && handleMarkRead(n.id)}
                             >
-                              <div style={{ fontWeight: 700, color: n.isRead ? 'var(--text-main)' : '#3730a3' }}>
+                              <div style={{ fontWeight: 700, color: n.isRead ? '#f1f5f9' : '#c7d2fe' }}>
                                 {n.title}
                               </div>
-                              <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>{n.message}</div>
+                              <div style={{ color: '#94a3b8', marginTop: 2 }}>{n.message}</div>
                             </div>
                           ))}
                         </div>
@@ -296,30 +296,31 @@ export default function Navbar({ currentView, setCurrentView }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  padding: '4px 12px 4px 5px',
-                  background: 'var(--bg-muted)',
-                  border: '1px solid var(--border-subtle)',
+                  padding: '4px 14px 4px 5px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
                   borderRadius: 24
                 }}>
                   <div style={{
                     width: 30,
                     height: 30,
                     borderRadius: '50%',
-                    background: 'var(--accent-gradient)',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
                     color: '#ffffff',
                     fontSize: '0.82rem',
                     fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.35)'
                   }}>
                     {user.fullName ? user.fullName[0].toUpperCase() : 'U'}
                   </div>
                   <div style={{ textAlign: 'left', display: 'none' }} className="navbar-user-info">
-                    <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.2 }}>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', lineHeight: 1.2 }}>
                       {user.fullName}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>
                       {user.role}
                     </div>
                   </div>
@@ -329,17 +330,27 @@ export default function Navbar({ currentView, setCurrentView }) {
                   onClick={logout}
                   aria-label="Sign out"
                   style={{
-                    background: 'var(--bg-muted)',
-                    border: '1px solid var(--border-subtle)',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.14)',
                     borderRadius: '50%',
                     width: 38,
                     height: 38,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'var(--text-muted)',
+                    color: '#cbd5e1',
                     cursor: 'pointer',
                     transition: 'all var(--transition-fast)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                    e.currentTarget.style.color = '#f87171';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.14)';
+                    e.currentTarget.style.color = '#cbd5e1';
                   }}
                 >
                   <LogOut size={16} />
@@ -375,6 +386,13 @@ export default function Navbar({ currentView, setCurrentView }) {
           </div>
         )}
       </nav>
+      <div style={{
+        height: '2.5px',
+        background: 'linear-gradient(90deg, #2563eb 0%, #06b6d4 25%, #818cf8 50%, #c084fc 75%, #2563eb 100%)',
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 4s linear infinite',
+        opacity: 0.9
+      }} />
 
       <style>{`
         @media (min-width: 768px) {

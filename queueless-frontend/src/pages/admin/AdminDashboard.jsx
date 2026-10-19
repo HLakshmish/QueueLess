@@ -452,48 +452,48 @@ export default function AdminDashboard() {
 
       {/* KPI Stats Grid */}
       <div className="grid-cols-4" style={{ marginBottom: 32 }}>
-        <div className="glass-panel" style={{ padding: 20 }}>
+        <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Subscribed Businesses</span>
             <div style={{ background: '#ede9fe', padding: 6, borderRadius: 8, color: '#4f46e5' }}><CreditCard size={18} /></div>
           </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6 }}>{subscriptions.filter(s => s.status === 'ACTIVE' || s.status === 'TRIAL').length}</div>
-          <div style={{ fontSize: '0.78rem', color: '#10b981', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#0f172a' }}>{subscriptions.filter(s => s.status === 'ACTIVE' || s.status === 'TRIAL').length}</div>
+          <div style={{ fontSize: '0.78rem', color: '#10b981', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
             <CheckCircle size={14} /> Active & Trial Subscriptions
           </div>
         </div>
 
-        <div className="glass-panel" style={{ padding: 20 }}>
+        <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Active SaaS Plans</span>
             <div style={{ background: '#e0e7ff', padding: 6, borderRadius: 8, color: '#4338ca' }}><Layers size={18} /></div>
           </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6 }}>{plans.filter(p => p.isActive).length} / {plans.length}</div>
-          <div style={{ fontSize: '0.78rem', color: '#4f46e5', marginTop: 4 }}>Available for onboarding</div>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#0f172a' }}>{plans.filter(p => p.isActive).length} / {plans.length}</div>
+          <div style={{ fontSize: '0.78rem', color: '#4f46e5', marginTop: 4, fontWeight: 600 }}>Available for onboarding</div>
         </div>
 
-        <div className="glass-panel" style={{ padding: 20 }}>
+        <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Registered Businesses</span>
             <div style={{ background: '#ecfdf5', padding: 6, borderRadius: 8, color: '#059669' }}><Building size={18} /></div>
           </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6 }}>{businesses.length}</div>
-          <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: 4 }}>{businesses.filter(b => b.status === 'ACTIVE').length} approved & operational</div>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#0f172a' }}>{businesses.length}</div>
+          <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: 4, fontWeight: 600 }}>{businesses.filter(b => b.status === 'ACTIVE').length} approved & operational</div>
         </div>
 
-        <div className="glass-panel" style={{ padding: 20 }}>
+        <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Queue Volume</span>
             <div style={{ background: '#fef3c7', padding: 6, borderRadius: 8, color: '#d97706' }}><Activity size={18} /></div>
           </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6 }}>{stats?.totalEntries || 0}</div>
-          <div style={{ fontSize: '0.78rem', color: '#d97706', marginTop: 4 }}>{stats?.totalServed || 0} tickets served</div>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#0f172a' }}>{stats?.totalEntries || 0}</div>
+          <div style={{ fontSize: '0.78rem', color: '#d97706', marginTop: 4, fontWeight: 600 }}>{stats?.totalServed || 0} tickets served</div>
         </div>
       </div>
 
       {/* --- TAB 1: SUBSCRIBED BUSINESSES (MANAGE BUSINESS USERS) --- */}
       {tab === 'subscriptions' && (
-        <div className="glass-panel" style={{ padding: 28 }}>
+        <div className="shining-card" style={{ padding: 28, background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 16 }}>
             <div>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700 }}>Subscribed Business Accounts</h2>
@@ -723,13 +723,14 @@ export default function AdminDashboard() {
               return (
                 <div 
                   key={p.id} 
-                  className={p.isActive ? "glass-panel" : "glass-panel"} 
+                  className={p.isActive ? "shining-card" : "shining-card"} 
                   style={{ 
                     padding: 24, 
                     display: 'flex', 
                     flexDirection: 'column', 
                     justifyContent: 'space-between',
                     position: 'relative',
+                    background: '#ffffff',
                     opacity: p.isActive ? 1 : 0.7,
                     border: p.isActive ? '1px solid var(--border-subtle)' : '1px dashed #cbd5e1'
                   }}
@@ -843,7 +844,7 @@ export default function AdminDashboard() {
 
       {/* --- TAB 3: REGISTERED BUSINESSES --- */}
       {tab === 'businesses' && (
-        <div className="glass-panel" style={{ padding: 24 }}>
+        <div className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
           <h3 style={{ fontSize: '1.25rem', marginBottom: 16 }}>Registered Businesses & Approvals</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
@@ -905,7 +906,7 @@ export default function AdminDashboard() {
 
       {/* --- TAB 4: USERS --- */}
       {tab === 'users' && (
-        <div className="glass-panel" style={{ padding: 24 }}>
+        <div className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
           <h3 style={{ fontSize: '1.25rem', marginBottom: 16 }}>All Platform Users</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
@@ -942,7 +943,7 @@ export default function AdminDashboard() {
 
       {/* --- TAB 5: AUDIT LOGS --- */}
       {tab === 'logs' && (
-        <div className="glass-panel" style={{ padding: 24 }}>
+        <div className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
           <h3 style={{ fontSize: '1.25rem', marginBottom: 16 }}>Security & Administration Audit Trail</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {auditLogs.map((log) => (

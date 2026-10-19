@@ -80,38 +80,60 @@ export default function SubscriptionBilling() {
       <div className="grid-cols-4">
         {plans.map((p) => {
           const isCurrent = currentPlan?.id === p.id;
+          const isPro = p.name?.toLowerCase().includes('pro');
           return (
             <div 
               key={p.id} 
-              className={isCurrent ? "glass-panel-glow" : "glass-panel"} 
+              className={isCurrent ? "shining-card glass-panel-glow" : "shining-card"} 
               style={{ 
                 padding: 28, 
                 display: 'flex', 
                 flexDirection: 'column', 
                 justifyContent: 'space-between',
-                position: 'relative'
+                position: 'relative',
+                background: '#ffffff'
               }}
             >
-              {isCurrent && (
-                <div style={{
-                  position: 'absolute',
-                  top: -12,
-                  right: 20,
-                  background: 'var(--accent-primary)',
-                  color: '#fff',
-                  fontSize: '0.7rem',
-                  fontWeight: 800,
-                  padding: '4px 10px',
-                  borderRadius: 20,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em'
-                }}>
-                  Active Plan
-                </div>
-              )}
-
               <div>
-                <h3 style={{ fontSize: '1.4rem', marginBottom: 6 }}>{p.name}</h3>
+                {(isCurrent || isPro) && (
+                  <div style={{ marginBottom: 10 }}>
+                    {isCurrent ? (
+                      <span style={{
+                        background: 'var(--accent-primary)',
+                        color: '#ffffff',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                        display: 'inline-block',
+                        lineHeight: 1.2
+                      }}>
+                        Active Plan
+                      </span>
+                    ) : (
+                      <span style={{
+                        background: 'var(--accent-gradient)',
+                        color: '#ffffff',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)',
+                        display: 'inline-block',
+                        lineHeight: 1.2
+                      }}>
+                        Most Popular
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: 6 }}>{p.name}</h3>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, margin: '16px 0 20px' }}>
                   <span style={{ fontSize: '2.2rem', fontWeight: 800 }}>₹{p.priceMonthly}</span>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>/ month</span>

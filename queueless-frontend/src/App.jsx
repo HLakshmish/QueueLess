@@ -135,6 +135,7 @@ function MainApp() {
             pendingQueue={pendingQueue}
             onRegisterClick={() => setCurrentView('register')} 
             onLoginSuccess={() => setCurrentView('explore')} 
+            onBack={() => setCurrentView('explore')}
           />
         )}
 
@@ -143,6 +144,7 @@ function MainApp() {
             pendingQueue={pendingQueue}
             onLoginClick={() => setCurrentView('login')} 
             onRegisterSuccess={() => setCurrentView('explore')} 
+            onBack={() => setCurrentView('explore')}
           />
         )}
       </main>

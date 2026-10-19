@@ -162,6 +162,47 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 20px 80px' }}>
+      {/* Top Back Navigation Button */}
+      <div style={{ marginBottom: 20 }}>
+        <button
+          type="button"
+          onClick={() => {
+            if (step > 1) {
+              setStep(step - 1);
+            } else if (onCancel) {
+              onCancel();
+            }
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: 24,
+            padding: '8px 18px',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            color: '#475569',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.03)',
+            transition: 'all 0.15s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = '#c7d2fe';
+            e.currentTarget.style.color = '#4338ca';
+            e.currentTarget.style.transform = 'translateX(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = '#e2e8f0';
+            e.currentTarget.style.color = '#475569';
+            e.currentTarget.style.transform = 'none';
+          }}
+        >
+          <ArrowLeft size={16} /> {step > 1 ? 'Previous Step' : 'Back to Discover'}
+        </button>
+      </div>
+
       {/* Top Banner / Progress Indicator */}
       <div style={{ textAlign: 'center', marginBottom: 36 }}>
         <div style={{ 
@@ -299,7 +340,7 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
                 return (
                   <div 
                     key={p.id} 
-                    className={isSelected ? "glass-panel-glow" : "glass-panel"} 
+                    className={isSelected ? "shining-card glass-panel-glow" : "shining-card"} 
                     style={{ 
                       padding: 24, 
                       display: 'flex', 
@@ -312,26 +353,28 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
                     }}
                     onClick={() => setSelectedPlan(p)}
                   >
-                    {isPro && (
-                      <div style={{
-                        position: 'absolute',
-                        top: -12,
-                        right: 18,
-                        background: 'var(--accent-gradient)',
-                        color: '#fff',
-                        fontSize: '0.7rem',
-                        fontWeight: 800,
-                        padding: '3px 10px',
-                        borderRadius: 20,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                      }}>
-                        Most Popular
-                      </div>
-                    )}
-
                     <div>
-                      <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 4 }}>{p.name}</h3>
+                      {isPro && (
+                        <div style={{ marginBottom: 10 }}>
+                          <span style={{
+                            background: 'var(--accent-gradient)',
+                            color: '#ffffff',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            padding: '4px 12px',
+                            borderRadius: 20,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                            display: 'inline-block',
+                            lineHeight: 1.2
+                          }}>
+                            Most Popular
+                          </span>
+                        </div>
+                      )}
+
+                      <h3 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: 4 }}>{p.name}</h3>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, margin: '14px 0 16px' }}>
                         <span style={{ fontSize: '2.2rem', fontWeight: 800 }}>₹{p.priceMonthly}</span>
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>/ month</span>
@@ -375,10 +418,7 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
           )}
 
           {/* Action Row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 36 }}>
-            <button type="button" onClick={onCancel} className="btn-secondary">
-              Back to Discover Queues
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 36 }}>
             <button 
               type="button" 
               onClick={() => setStep(2)} 
@@ -397,7 +437,7 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
          ======================================================== */}
       {step === 2 && (
         <div style={{ maxWidth: 740, margin: '0 auto' }}>
-          <div className="glass-panel" style={{ padding: 36 }}>
+          <div className="shining-card" style={{ padding: 36, background: '#ffffff' }}>
             <div style={{ marginBottom: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Step 2: Business Profile & Registration</h2>
@@ -588,7 +628,7 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
               {/* Step Navigation */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
                 <button type="button" onClick={() => setStep(1)} className="btn-secondary">
-                  <ArrowLeft size={16} /> Change Plan
+                  <ArrowLeft size={16} /> Back
                 </button>
                 <button type="submit" className="btn-primary" style={{ padding: '12px 28px' }}>
                   Proceed to Review <ArrowRight size={16} />
@@ -604,7 +644,7 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
          ======================================================== */}
       {step === 3 && (
         <div style={{ maxWidth: 740, margin: '0 auto' }}>
-          <div className="glass-panel" style={{ padding: 36 }}>
+          <div className="shining-card" style={{ padding: 36, background: '#ffffff' }}>
             <div style={{ textAlign: 'center', marginBottom: 28 }}>
               <div style={{ 
                 width: 54, 
@@ -734,7 +774,7 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
                   className="btn-secondary"
                   disabled={submitting}
                 >
-                  <ArrowLeft size={16} /> Edit Details
+                  <ArrowLeft size={16} /> Back
                 </button>
                 <button 
                   type="button" 

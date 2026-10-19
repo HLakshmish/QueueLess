@@ -568,7 +568,7 @@ export default function BusinessDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           
           {/* Queue Overview Summary Cards */}
-          <div className="glass-panel" style={{ padding: 24 }}>
+          <div className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h3 style={{ fontSize: '1.25rem' }}>Queue Overview</h3>
@@ -618,7 +618,7 @@ export default function BusinessDashboard() {
           </div>
 
           {/* Hero Now Serving Console */}
-          <div className="glass-panel-glow" style={{ padding: 24, textAlign: 'center' }}>
+          <div className="shining-card glass-panel-glow" style={{ padding: 32, textAlign: 'center', background: 'linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%)' }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 8 }}>
               Currently Called / Serving at Desk
             </div>
@@ -671,7 +671,7 @@ export default function BusinessDashboard() {
           </div>
 
           {/* Waiting List Table matching Reference Mockup */}
-          <div className="glass-panel" style={{ padding: 24 }}>
+          <div className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ fontSize: '1.2rem' }}>Waiting List ({waitingEntries.length})</h3>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -752,7 +752,7 @@ export default function BusinessDashboard() {
 
         {/* Right Panel: Real-Time Activity Log Feed matching Reference Mockup */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div className="glass-panel" style={{ padding: 24 }}>
+          <div className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ fontSize: '1.15rem' }}>Real-Time Activity</h3>
               <Clock size={16} color="var(--text-muted)" />

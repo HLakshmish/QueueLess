@@ -244,7 +244,7 @@ export default function ServicesBranches() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {branches.map((b) => (
-            <div key={b.id} className="glass-panel" style={{ padding: 24 }}>
+            <div key={b.id} className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
               {/* Branch Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 16, marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                 <div>

@@ -91,7 +91,7 @@ export default function BusinessAnalytics() {
       </div>
 
       {/* Hourly Flow Chart Representation */}
-      <div className="glass-panel" style={{ padding: 28 }}>
+      <div className="shining-card" style={{ padding: 28, background: '#ffffff' }}>
         <h3 style={{ fontSize: '1.25rem', marginBottom: 6 }}>Peak Hours Throughput</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 24 }}>
           Hourly queue volume and staff desk processing rate.

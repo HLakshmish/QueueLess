@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { subscribeToQueue } from '../../services/socket';
-import { Clock, Users, CheckCircle, XCircle, Bell, MapPin, Building, Sparkles, Calendar, Ticket } from 'lucide-react';
+import { Clock, Users, CheckCircle, XCircle, Bell, MapPin, Building, Sparkles, Calendar, Ticket, ShieldCheck } from 'lucide-react';
+import smartTicketBadge from '../../assets/smart_ticket_badge.jpg';
 
 function getQueueWaitLevel(peopleAhead, estimatedWait) {
   if (peopleAhead <= 2 || estimatedWait <= 15) return 'low';
@@ -166,56 +167,70 @@ export default function ActiveQueueTicket({ activeEntryId, onSelectExplore }) {
         </div>
       )}
 
-      <div className="glass-panel-glow" style={{ padding: 32, position: 'relative', overflow: 'hidden' }}>
+      <div className="shining-card" style={{ padding: 32, position: 'relative', overflow: 'hidden', background: 'linear-gradient(180deg, #ffffff 0%, #f8faff 100%)' }}>
+        {/* Soft background radiant ambient glow */}
         <div style={{
           position: 'absolute',
           top: -80,
           right: -80,
-          width: 200,
-          height: 200,
+          width: 220,
+          height: 220,
           borderRadius: '50%',
-          background: 'rgba(99, 102, 241, 0.05)',
-          filter: 'blur(50px)',
+          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%)',
           pointerEvents: 'none'
         }} />
 
-        {/* Header */}
+        {/* Header with 3D Smart Ticket Badge */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          borderBottom: '1px dashed var(--border-subtle)',
+          alignItems: 'center',
+          borderBottom: '1px dashed #cbd5e1',
           paddingBottom: 20,
-          gap: 12,
+          gap: 16,
           flexWrap: 'wrap'
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Building size={14} color="var(--accent-primary)" />
-              <span style={{ fontWeight: 600 }}>{entry.queue?.service?.branch?.business?.name || 'Business'}</span>
-            </div>
-            <h2 style={{ fontSize: '1.45rem', marginTop: 4 }}>
-              {entry.queue?.service?.name || 'General Consultation'}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-dim)', fontSize: '0.82rem', marginTop: 4 }}>
-              <MapPin size={12} />
-              <span>{entry.queue?.service?.branch?.name}, {entry.queue?.service?.branch?.city}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: 5 }}>
-              <Calendar size={13} color="var(--accent-primary)" />
-              <span>
-                Queue Date:{' '}
-                <strong style={{ color: 'var(--text-main)' }}>
-                  {new Date(entry.queue?.date || entry.createdAt).toLocaleDateString('en-US', {
-                    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
-                  })}
-                </strong>
-              </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <img 
+              src={smartTicketBadge} 
+              alt="QueuePass" 
+              style={{ 
+                width: 60, 
+                height: 60, 
+                borderRadius: 14, 
+                objectFit: 'cover',
+                boxShadow: '0 8px 18px rgba(79, 70, 229, 0.18)',
+                border: '2px solid rgba(255, 255, 255, 0.9)'
+              }} 
+            />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <Building size={14} color="var(--accent-primary)" />
+                <span style={{ fontWeight: 600 }}>{entry.queue?.service?.branch?.business?.name || 'Business'}</span>
+              </div>
+              <h2 style={{ fontSize: '1.45rem', marginTop: 2, color: '#0f172a' }}>
+                {entry.queue?.service?.name || 'General Consultation'}
+              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#64748b', fontSize: '0.82rem', marginTop: 4 }}>
+                <MapPin size={12} color="#007bff" />
+                <span>{entry.queue?.service?.branch?.name}, {entry.queue?.service?.branch?.city}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#475569', fontSize: '0.82rem', marginTop: 5 }}>
+                <Calendar size={13} color="var(--accent-primary)" />
+                <span>
+                  Queue Date:{' '}
+                  <strong style={{ color: '#0f172a' }}>
+                    {new Date(entry.queue?.date || entry.createdAt).toLocaleDateString('en-US', {
+                      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+                    })}
+                  </strong>
+                </span>
+              </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-            <span className={`badge badge-${entry.status.toLowerCase().replace('_', '-')}`}>
+            <span className={`badge badge-${entry.status.toLowerCase().replace('_', '-')}`} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               {entry.status.replace('_', ' ')}
             </span>
             {!isCalled && !isServing && (

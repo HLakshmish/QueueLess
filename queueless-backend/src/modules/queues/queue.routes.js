@@ -348,17 +348,16 @@ export default async function queueRoutes(fastify, options) {
     }
 
     if (!queue) {
-      if (!service.isActive) {
-        return reply.code(400).send({ success: false, error: 'Service is currently inactive' });
-      }
-      queue = await prisma.queue.create({
-        data: {
-          serviceId,
-          title: `${service.name} Queue`,
-          status: 'OPEN',
-          currentNumber: 0,
-          date: targetDate,
-        },
+      return reply.code(400).send({
+        success: false,
+        error: 'Queue desk has not been opened by the business operator yet for this date.',
+      });
+    }
+
+    if (queue.status !== 'OPEN') {
+      return reply.code(400).send({
+        success: false,
+        error: `Queue is currently ${queue.status.toLowerCase()}. Joining is not permitted at this time.`,
       });
     }
 

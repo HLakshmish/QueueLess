@@ -44,7 +44,7 @@ export default function QueueHistory({ onSelectTicket }) {
           <p>Your past queue visits and tickets will appear here once you join a queue.</p>
         </div>
       ) : (
-        <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="shining-card" style={{ padding: 0, overflow: 'hidden', background: '#ffffff' }}>
           {history.map((item, index) => (
             <div
               key={item.id}

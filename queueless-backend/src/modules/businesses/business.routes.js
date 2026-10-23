@@ -38,10 +38,40 @@ export default async function businessRoutes(fastify, options) {
       whereClause.category = { contains: category, mode: 'insensitive' };
     }
 
+    if (city) {
+      whereClause.branches = {
+        some: {
+          city: { contains: city, mode: 'insensitive' },
+        },
+      };
+    }
+
     if (query) {
+      const q = String(query).trim();
       whereClause.OR = [
-        { name: { contains: query, mode: 'insensitive' } },
-        { description: { contains: query, mode: 'insensitive' } },
+        { name: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { category: { contains: q, mode: 'insensitive' } },
+        {
+          branches: {
+            some: {
+              OR: [
+                { city: { contains: q, mode: 'insensitive' } },
+                { address: { contains: q, mode: 'insensitive' } },
+                { name: { contains: q, mode: 'insensitive' } },
+                { state: { contains: q, mode: 'insensitive' } },
+                { postalCode: { contains: q, mode: 'insensitive' } },
+                {
+                  services: {
+                    some: {
+                      name: { contains: q, mode: 'insensitive' },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
       ];
     }
 

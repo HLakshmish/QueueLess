@@ -84,5 +84,14 @@ export async function buildApp() {
     { prefix: '/api/v1' }
   );
 
+  fastify.setErrorHandler((error, request, reply) => {
+    fastify.log.error(error);
+    const statusCode = error.statusCode || (reply.statusCode >= 400 ? reply.statusCode : 500);
+    return reply.status(statusCode).send({
+      success: false,
+      error: error.message || 'Internal Server Error',
+    });
+  });
+
   return fastify;
 }

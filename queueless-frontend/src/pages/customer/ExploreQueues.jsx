@@ -214,16 +214,30 @@ export default function ExploreQueues({
     }, 120);
   };
 
+  const searchTimeoutRef = useRef(null);
+
   const handleSearchChange = (e) => {
     const val = e.target.value;
     setSearch(val);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
     if (val.trim() === '') {
       setActiveCategory('All');
       loadBusinesses('', selectedDate);
+    } else {
+      searchTimeoutRef.current = setTimeout(() => {
+        loadBusinesses(val, selectedDate);
+      }, 350);
     }
   };
 
   const handleClearSearch = () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     setSearch('');
     setActiveCategory('All');
     loadBusinesses('', selectedDate);
@@ -352,10 +366,6 @@ export default function ExploreQueues({
 
   const handleCategorySelect = (cat) => {
     setActiveCategory(cat);
-    if (search.trim() !== '') {
-      setSearch('');
-      loadBusinesses('', selectedDate);
-    }
     setTimeout(() => {
       scrollToResults();
     }, 100);
@@ -420,8 +430,28 @@ export default function ExploreQueues({
         });
       }
     });
-    return list;
-  }, [filteredBusinesses]);
+
+    const term = (search || '').trim().toLowerCase();
+    if (!term) return list;
+
+    const terms = term.split(/\s+/).filter(Boolean);
+
+    return list.filter(({ business: biz, branch }) => {
+      const fullSearchableText = [
+        biz.name,
+        biz.category,
+        biz.description,
+        branch.name,
+        branch.city,
+        branch.address,
+        branch.state,
+        branch.postalCode,
+        ...(branch.services || []).map(s => `${s.name || ''} ${s.description || ''}`)
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      return fullSearchableText.includes(term) || terms.every(t => fullSearchableText.includes(t));
+    });
+  }, [filteredBusinesses, search]);
 
   return (
     <div style={{ width: '100%' }}>

@@ -3,18 +3,18 @@ export default async function serviceRoutes(fastify, options) {
 
   // Helper to verify business membership for a branch
   async function verifyBranchAccess(request, reply, branchId) {
-    if (request.user.role === 'APPLICATION_MANAGER') return true;
-    if (request.user.role !== 'BUSINESS_USER') {
-      reply.code(403).send({ success: false, error: 'Requires BUSINESS_USER role' });
-      return false;
-    }
     const branch = await prisma.branch.findUnique({
       where: { id: branchId },
       include: { business: true },
     });
     if (!branch) {
       reply.code(404).send({ success: false, error: 'Branch not found' });
-      return false;
+      return null;
+    }
+    if (request.user.role === 'APPLICATION_MANAGER') return branch;
+    if (request.user.role !== 'BUSINESS_USER') {
+      reply.code(403).send({ success: false, error: 'Requires BUSINESS_USER role' });
+      return null;
     }
     const membership = await prisma.businessMember.findUnique({
       where: {
@@ -26,7 +26,7 @@ export default async function serviceRoutes(fastify, options) {
     });
     if (!membership) {
       reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this branch' });
-      return false;
+      return null;
     }
     return branch;
   }
@@ -109,41 +109,73 @@ export default async function serviceRoutes(fastify, options) {
     '/branches/:branchId',
     { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
-      const { branchId } = request.params;
-      const branch = await verifyBranchAccess(request, reply, branchId);
-      if (!branch) return;
-
-      const { name, address, city, state, postalCode, phone, imageUrl } = request.body || {};
-
-      let updated;
       try {
-        updated = await prisma.branch.update({
-          where: { id: branchId },
-          data: {
-            name: name ? name.trim() : undefined,
-            address: address ? address.trim() : undefined,
-            city: city ? city.trim() : undefined,
-            state: state !== undefined ? state : undefined,
-            postalCode: postalCode !== undefined ? postalCode : undefined,
-            phone: phone !== undefined ? phone : undefined,
-            imageUrl: imageUrl !== undefined ? (imageUrl ? imageUrl.trim() : null) : undefined,
-          },
-        });
-      } catch (err) {
-        updated = await prisma.branch.update({
-          where: { id: branchId },
-          data: {
-            name: name ? name.trim() : undefined,
-            address: address ? address.trim() : undefined,
-            city: city ? city.trim() : undefined,
-            state: state !== undefined ? state : undefined,
-            postalCode: postalCode !== undefined ? postalCode : undefined,
-            phone: phone !== undefined ? phone : undefined,
-          },
-        });
-      }
+        const { branchId } = request.params;
+        const branch = await verifyBranchAccess(request, reply, branchId);
+        if (reply.sent) return;
+        if (!branch) return reply.code(404).send({ success: false, error: 'Branch not found' });
 
-      return reply.send({ success: true, data: updated });
+        const { name, address, city, state, postalCode, phone, imageUrl } = request.body || {};
+
+        // Auto-ensure imageUrl column exists on branches table
+        try {
+          await prisma.$executeRawUnsafe('ALTER TABLE "branches" ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;');
+        } catch (colErr) {
+          // ignore
+        }
+
+        let updated;
+        try {
+          updated = await prisma.branch.update({
+            where: { id: branchId },
+            data: {
+              name: name ? name.trim() : undefined,
+              address: address ? address.trim() : undefined,
+              city: city ? city.trim() : undefined,
+              state: state !== undefined ? state : undefined,
+              postalCode: postalCode !== undefined ? postalCode : undefined,
+              phone: phone !== undefined ? phone : undefined,
+              imageUrl: imageUrl !== undefined ? (imageUrl ? imageUrl.trim() : null) : undefined,
+            },
+          });
+        } catch (err) {
+          fastify.log.warn('Standard branch update failed, attempting raw update fallback: ' + err.message);
+          try {
+            await prisma.$executeRawUnsafe(
+              `UPDATE "branches" SET 
+                "name" = COALESCE($1, "name"), 
+                "address" = COALESCE($2, "address"), 
+                "city" = COALESCE($3, "city"),
+                "imageUrl" = COALESCE($4, "imageUrl"),
+                "updatedAt" = CURRENT_TIMESTAMP
+               WHERE "id" = $5`,
+              name ? name.trim() : null,
+              address ? address.trim() : null,
+              city ? city.trim() : null,
+              imageUrl !== undefined ? (imageUrl ? imageUrl.trim() : null) : null,
+              branchId
+            );
+            updated = await prisma.branch.findUnique({ where: { id: branchId } });
+          } catch (rawErr) {
+            updated = await prisma.branch.update({
+              where: { id: branchId },
+              data: {
+                name: name ? name.trim() : undefined,
+                address: address ? address.trim() : undefined,
+                city: city ? city.trim() : undefined,
+                state: state !== undefined ? state : undefined,
+                postalCode: postalCode !== undefined ? postalCode : undefined,
+                phone: phone !== undefined ? phone : undefined,
+              },
+            });
+          }
+        }
+
+        return reply.send({ success: true, data: updated });
+      } catch (err) {
+        fastify.log.error(err, 'Failed updating branch');
+        return reply.code(500).send({ success: false, error: err.message || 'Failed to update branch' });
+      }
     }
   );
 

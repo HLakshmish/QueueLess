@@ -8,4 +8,6 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || 'queueless-secret-jwt-key-2026',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'queueless-refresh-secret-jwt-key-2026',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_TqueU0bD2Nnjpq',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || 'HmekDIwfVhpHQ3CRqNsmzKS2',
 };

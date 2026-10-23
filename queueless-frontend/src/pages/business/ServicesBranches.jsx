@@ -1,13 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Store, Clock, MapPin, Edit2, Trash2, AlertTriangle, X, Check } from 'lucide-react';
+import { Plus, Store, Clock, MapPin, Edit2, Trash2, AlertTriangle, X, Check, Upload, Image as ImageIcon } from 'lucide-react';
+
+// Client-side image processor: compresses and resizes to lightweight DataURL
+const processImageFile = (file, callback) => {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const maxW = 1200;
+      const maxH = 800;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxW || height > maxH) {
+        if (width / height > maxW / maxH) {
+          height = Math.round((height * maxW) / width);
+          width = maxW;
+        } else {
+          width = Math.round((width * maxH) / height);
+          height = maxH;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      callback(dataUrl);
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+};
 
 export default function ServicesBranches() {
   const { activeBusiness } = useAuth();
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // File input refs for system file choosing
+  const addFileInputRef = useRef(null);
+  const editFileInputRef = useRef(null);
 
   // New service form state
   const [showAddService, setShowAddService] = useState(false);
@@ -21,12 +60,14 @@ export default function ServicesBranches() {
   const [branchName, setBranchName] = useState('');
   const [branchAddress, setBranchAddress] = useState('');
   const [branchCity, setBranchCity] = useState('');
+  const [branchImageUrl, setBranchImageUrl] = useState('');
 
   // Edit branch state
   const [editingBranch, setEditingBranch] = useState(null);
   const [editBranchName, setEditBranchName] = useState('');
   const [editBranchAddress, setEditBranchAddress] = useState('');
   const [editBranchCity, setEditBranchCity] = useState('');
+  const [editBranchImageUrl, setEditBranchImageUrl] = useState('');
 
   // Delete branch state
   const [deletingBranch, setDeletingBranch] = useState(null);
@@ -73,12 +114,14 @@ export default function ServicesBranches() {
         name: branchName,
         address: branchAddress,
         city: branchCity,
+        imageUrl: branchImageUrl ? branchImageUrl.trim() : null,
       });
       if (res.success) {
         setShowAddBranch(false);
         setBranchName('');
         setBranchAddress('');
         setBranchCity('');
+        setBranchImageUrl('');
         await loadData();
       }
     } catch (err) {
@@ -93,6 +136,7 @@ export default function ServicesBranches() {
     setEditBranchName(branch.name);
     setEditBranchAddress(branch.address || '');
     setEditBranchCity(branch.city || '');
+    setEditBranchImageUrl(branch.imageUrl || '');
   };
 
   const handleUpdateBranch = async (e) => {
@@ -104,6 +148,7 @@ export default function ServicesBranches() {
         name: editBranchName,
         address: editBranchAddress,
         city: editBranchCity,
+        imageUrl: editBranchImageUrl ? editBranchImageUrl.trim() : '',
       });
       if (res.success) {
         setEditingBranch(null);
@@ -246,12 +291,44 @@ export default function ServicesBranches() {
           {branches.map((b) => (
             <div key={b.id} className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
               {/* Branch Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 16, marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                  <h3 style={{ fontSize: '1.35rem', fontWeight: 700 }}>{b.name}</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
-                    <MapPin size={14} color="var(--accent-primary)" />
-                    <span>{b.address}, {b.city}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 16, marginBottom: 20, flexWrap: 'wrap', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  {b.imageUrl ? (
+                    <img 
+                      src={b.imageUrl} 
+                      alt={b.name} 
+                      style={{ 
+                        width: 64, 
+                        height: 64, 
+                        borderRadius: 14, 
+                        objectFit: 'cover', 
+                        border: '1.5px solid var(--border-subtle)', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)' 
+                      }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div style={{ 
+                      width: 64, 
+                      height: 64, 
+                      borderRadius: 14, 
+                      background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      color: 'var(--accent-primary, #4f46e5)',
+                      border: '1px solid #c7d2fe'
+                    }}>
+                      <Store size={28} />
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 style={{ fontSize: '1.35rem', fontWeight: 700, margin: '0 0 4px 0' }}>{b.name}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      <MapPin size={14} color="var(--accent-primary)" />
+                      <span>{b.address}, {b.city}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -259,7 +336,7 @@ export default function ServicesBranches() {
                   <button
                     onClick={() => handleOpenEditBranch(b)}
                     className="btn-secondary"
-                    style={{ padding: '6px 12px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                    style={{ padding: '6px 14px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}
                     title="Edit Branch Location"
                   >
                     <Edit2 size={13} /> Edit
@@ -267,7 +344,7 @@ export default function ServicesBranches() {
                   <button
                     onClick={() => setDeletingBranch(b)}
                     className="btn-danger"
-                    style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                    style={{ padding: '6px 14px', fontSize: '0.82rem' }}
                     title="Delete Branch Location"
                   >
                     <Trash2 size={13} /> Delete
@@ -367,7 +444,7 @@ export default function ServicesBranches() {
       {/* Add Branch Modal */}
       {showAddBranch && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 440 }}>
+          <div className="modal-content" style={{ maxWidth: 460 }}>
             <div className="modal-header">
               <h3>Add Physical Branch</h3>
               <p>Register a new location for your business</p>
@@ -375,15 +452,146 @@ export default function ServicesBranches() {
             <form onSubmit={handleCreateBranch}>
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Branch Name *</label>
-                <input className="form-input" placeholder="e.g. Indiranagar Outpatient Center" value={branchName} onChange={(e) => setBranchName(e.target.value)} required />
+                <input className="form-input" placeholder="e.g. Koteshwara Branch" value={branchName} onChange={(e) => setBranchName(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Street Address *</label>
-                <input className="form-input" placeholder="e.g. 100 Feet Road" value={branchAddress} onChange={(e) => setBranchAddress(e.target.value)} required />
+                <input className="form-input" placeholder="e.g. Beejadi-Koteshwara Road, near High School" value={branchAddress} onChange={(e) => setBranchAddress(e.target.value)} required />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>City *</label>
+                <input className="form-input" placeholder="e.g. Koteshwara / Kundapura" value={branchCity} onChange={(e) => setBranchCity(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>City *</label>
-                <input className="form-input" placeholder="e.g. Bengaluru" value={branchCity} onChange={(e) => setBranchCity(e.target.value)} required />
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                  Branch Photo <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(Optional)</span>
+                </label>
+
+                {branchImageUrl ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 10,
+                    background: '#f8fafc',
+                    borderRadius: 12,
+                    border: '1.5px solid #c7d2fe'
+                  }}>
+                    <img 
+                      src={branchImageUrl} 
+                      alt="Preview" 
+                      style={{ width: 72, height: 50, borderRadius: 8, objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Check size={14} color="#16a34a" /> Image Selected
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        Ready to save with branch
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => addFileInputRef.current && addFileInputRef.current.click()}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 8,
+                          padding: '5px 10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          color: '#334155',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBranchImageUrl('');
+                          if (addFileInputRef.current) addFileInputRef.current.value = '';
+                        }}
+                        style={{
+                          background: '#fee2e2',
+                          border: '1px solid #fecaca',
+                          borderRadius: 8,
+                          padding: '5px 8px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          color: '#dc2626',
+                          cursor: 'pointer'
+                        }}
+                        title="Remove Image"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Choose from System Dropzone Button */}
+                    <div 
+                      onClick={() => addFileInputRef.current && addFileInputRef.current.click()}
+                      style={{
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: 14,
+                        padding: '16px 14px',
+                        textAlign: 'center',
+                        background: '#f8fafc',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#6366f1';
+                        e.currentTarget.style.background = '#f0f4ff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                        e.currentTarget.style.background = '#f8fafc';
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5' }}>
+                          <Upload size={18} />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#4338ca' }}>📁 Choose Image from System</span>
+                          <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: '#64748b' }}>Select photo from your computer or device</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Or Paste URL option */}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600 }}>Or paste image web link:</span>
+                      </div>
+                      <input 
+                        className="form-input" 
+                        placeholder="https://... image link" 
+                        value={branchImageUrl} 
+                        onChange={(e) => setBranchImageUrl(e.target.value)} 
+                        style={{ fontSize: '0.8rem', padding: '7px 10px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <input 
+                  type="file" 
+                  ref={addFileInputRef} 
+                  accept="image/*" 
+                  style={{ display: 'none' }} 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      processImageFile(file, (dataUrl) => setBranchImageUrl(dataUrl));
+                    }
+                  }} 
+                />
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowAddBranch(false)} className="btn-secondary">Cancel</button>
@@ -399,23 +607,154 @@ export default function ServicesBranches() {
       {/* Edit Branch Modal */}
       {editingBranch && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 440 }}>
+          <div className="modal-content" style={{ maxWidth: 460 }}>
             <div className="modal-header">
               <h3>Edit Branch Location</h3>
-              <p>Update physical address and branch name</p>
+              <p>Update physical address, name and branch photo</p>
             </div>
             <form onSubmit={handleUpdateBranch}>
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Branch Name *</label>
-                <input className="form-input" placeholder="e.g. Indiranagar Outpatient Center" value={editBranchName} onChange={(e) => setEditBranchName(e.target.value)} required />
+                <input className="form-input" placeholder="e.g. Koteshwara Branch" value={editBranchName} onChange={(e) => setEditBranchName(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Street Address *</label>
-                <input className="form-input" placeholder="e.g. 100 Feet Road" value={editBranchAddress} onChange={(e) => setEditBranchAddress(e.target.value)} required />
+                <input className="form-input" placeholder="e.g. Beejadi-Koteshwara Road, near High School" value={editBranchAddress} onChange={(e) => setEditBranchAddress(e.target.value)} required />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>City *</label>
+                <input className="form-input" placeholder="e.g. Koteshwara / Kundapura" value={editBranchCity} onChange={(e) => setEditBranchCity(e.target.value)} required />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>City *</label>
-                <input className="form-input" placeholder="e.g. Bengaluru" value={editBranchCity} onChange={(e) => setEditBranchCity(e.target.value)} required />
+                <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                  Branch Photo <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(Optional)</span>
+                </label>
+
+                {editBranchImageUrl ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 10,
+                    background: '#f8fafc',
+                    borderRadius: 12,
+                    border: '1.5px solid #c7d2fe'
+                  }}>
+                    <img 
+                      src={editBranchImageUrl} 
+                      alt="Preview" 
+                      style={{ width: 72, height: 50, borderRadius: 8, objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Check size={14} color="#16a34a" /> Image Selected
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        Ready to save with branch
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => editFileInputRef.current && editFileInputRef.current.click()}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 8,
+                          padding: '5px 10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          color: '#334155',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditBranchImageUrl('');
+                          if (editFileInputRef.current) editFileInputRef.current.value = '';
+                        }}
+                        style={{
+                          background: '#fee2e2',
+                          border: '1px solid #fecaca',
+                          borderRadius: 8,
+                          padding: '5px 8px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          color: '#dc2626',
+                          cursor: 'pointer'
+                        }}
+                        title="Remove Image"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Choose from System Dropzone Button */}
+                    <div 
+                      onClick={() => editFileInputRef.current && editFileInputRef.current.click()}
+                      style={{
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: 14,
+                        padding: '16px 14px',
+                        textAlign: 'center',
+                        background: '#f8fafc',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#6366f1';
+                        e.currentTarget.style.background = '#f0f4ff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                        e.currentTarget.style.background = '#f8fafc';
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5' }}>
+                          <Upload size={18} />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#4338ca' }}>📁 Choose Image from System</span>
+                          <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: '#64748b' }}>Select photo from your computer or device</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Or Paste URL option */}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600 }}>Or paste image web link:</span>
+                      </div>
+                      <input 
+                        className="form-input" 
+                        placeholder="https://... image link" 
+                        value={editBranchImageUrl} 
+                        onChange={(e) => setEditBranchImageUrl(e.target.value)} 
+                        style={{ fontSize: '0.8rem', padding: '7px 10px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <input 
+                  type="file" 
+                  ref={editFileInputRef} 
+                  accept="image/*" 
+                  style={{ display: 'none' }} 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      processImageFile(file, (dataUrl) => setEditBranchImageUrl(dataUrl));
+                    }
+                  }} 
+                />
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setEditingBranch(null)} className="btn-secondary">Cancel</button>

@@ -113,19 +113,35 @@ export default async function serviceRoutes(fastify, options) {
       const branch = await verifyBranchAccess(request, reply, branchId);
       if (!branch) return;
 
-      const { name, address, city, state, postalCode, phone } = request.body || {};
+      const { name, address, city, state, postalCode, phone, imageUrl } = request.body || {};
 
-      const updated = await prisma.branch.update({
-        where: { id: branchId },
-        data: {
-          name: name ? name.trim() : undefined,
-          address: address ? address.trim() : undefined,
-          city: city ? city.trim() : undefined,
-          state: state !== undefined ? state : undefined,
-          postalCode: postalCode !== undefined ? postalCode : undefined,
-          phone: phone !== undefined ? phone : undefined,
-        },
-      });
+      let updated;
+      try {
+        updated = await prisma.branch.update({
+          where: { id: branchId },
+          data: {
+            name: name ? name.trim() : undefined,
+            address: address ? address.trim() : undefined,
+            city: city ? city.trim() : undefined,
+            state: state !== undefined ? state : undefined,
+            postalCode: postalCode !== undefined ? postalCode : undefined,
+            phone: phone !== undefined ? phone : undefined,
+            imageUrl: imageUrl !== undefined ? (imageUrl ? imageUrl.trim() : null) : undefined,
+          },
+        });
+      } catch (err) {
+        updated = await prisma.branch.update({
+          where: { id: branchId },
+          data: {
+            name: name ? name.trim() : undefined,
+            address: address ? address.trim() : undefined,
+            city: city ? city.trim() : undefined,
+            state: state !== undefined ? state : undefined,
+            postalCode: postalCode !== undefined ? postalCode : undefined,
+            phone: phone !== undefined ? phone : undefined,
+          },
+        });
+      }
 
       return reply.send({ success: true, data: updated });
     }

@@ -3,8 +3,23 @@ import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Check, ShieldCheck, Zap } from 'lucide-react';
 
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function SubscriptionBilling() {
-  const { activeBusiness } = useAuth();
+  const { user, activeBusiness } = useAuth();
   const [plans, setPlans] = useState([]);
   const [currentPlan, setCurrentPlan] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,18 +51,96 @@ export default function SubscriptionBilling() {
   const handleSelectPlan = async (plan) => {
     if (!activeBusiness) return;
     setSubscribing(true);
+
     try {
-      const res = await api.subscribeBusiness({
-        businessId: activeBusiness.id,
-        planId: plan.id,
-      });
-      if (res.success) {
-        alert(`Successfully upgraded to the ${plan.name} Plan!`);
-        setCurrentPlan(plan);
+      const isPaid = Number(plan.priceMonthly) > 0;
+
+      if (!isPaid) {
+        // Free / Trial plan upgrade
+        const res = await api.subscribeBusiness({
+          businessId: activeBusiness.id,
+          planId: plan.id,
+        });
+        if (res.success) {
+          alert(`Successfully switched to the ${plan.name} Plan!`);
+          setCurrentPlan(plan);
+        }
+        setSubscribing(false);
+        return;
       }
+
+      // Paid Plan via Razorpay
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error('Unable to load Razorpay payment SDK. Please check your internet connection.');
+      }
+
+      const orderRes = await api.createRazorpayOrder({
+        planId: plan.id,
+        businessId: activeBusiness.id,
+        notes: {
+          businessName: activeBusiness.name,
+          planName: plan.name,
+        },
+      });
+
+      if (!orderRes.success || !orderRes.order) {
+        throw new Error(orderRes.error || 'Failed to create Razorpay payment order.');
+      }
+
+      const options = {
+        key: orderRes.keyId || 'rzp_test_TqueU0bD2Nnjpq',
+        amount: orderRes.order.amount,
+        currency: orderRes.order.currency || 'INR',
+        name: 'QueueLess Subscriptions',
+        description: `Upgrade to ${plan.name} Plan - ${activeBusiness.name}`,
+        order_id: orderRes.order.id,
+        prefill: {
+          name: user?.fullName || '',
+          email: user?.email || '',
+          contact: user?.phone || '',
+        },
+        theme: {
+          color: '#4f46e5',
+        },
+        modal: {
+          ondismiss: () => {
+            setSubmitting(false);
+          },
+        },
+        handler: async function (response) {
+          try {
+            // Verify payment and upgrade subscription on backend
+            const verifyRes = await api.verifyRazorpayPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              businessId: activeBusiness.id,
+              planId: plan.id,
+            });
+
+            if (verifyRes.success) {
+              alert(`Payment successful! Your business is now on the ${plan.name} Plan.`);
+              setCurrentPlan(plan);
+            } else {
+              alert(verifyRes.error || 'Payment verification failed.');
+            }
+          } catch (vErr) {
+            alert(vErr.message || 'Error completing subscription verification.');
+          } finally {
+            setSubscribing(false);
+          }
+        },
+      };
+
+      const rzpInstance = new window.Razorpay(options);
+      rzpInstance.on('payment.failed', function (resp) {
+        setSubscribing(false);
+        alert(resp.error?.description || 'Payment was cancelled or failed.');
+      });
+      rzpInstance.open();
     } catch (err) {
-      alert(err.message);
-    } finally {
+      alert(err.message || 'Failed to initiate plan upgrade.');
       setSubscribing(false);
     }
   };

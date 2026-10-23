@@ -107,26 +107,24 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
     setStep(3);
   };
 
-  const handleFinalSubmit = async () => {
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      let activeToken = localStorage.getItem('queueless_token');
-
-      // 1. If not logged in, register first as BUSINESS_USER
-      if (!user) {
-        const regRes = await register({
-          fullName: formData.fullName,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone || formData.businessPhone,
-          role: 'BUSINESS_USER',
-        });
-        activeToken = localStorage.getItem('queueless_token');
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
       }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
-      // 2. Create business and associate selected subscription plan
+  const executeBusinessCreation = async (paymentDetails = null) => {
+    try {
+      // Create business and associate selected subscription plan + verified payment
       const bizRes = await api.createBusiness({
         name: formData.businessName,
         category: formData.category,
@@ -137,13 +135,14 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
         address: formData.address || 'Headquarters',
         city: formData.city || 'Bengaluru',
         planId: selectedPlan?.id,
+        paymentDetails: paymentDetails || undefined,
       });
 
       if (!bizRes.success) {
         throw new Error(bizRes.error || 'Failed to create business');
       }
 
-      // 3. Refresh user session with new token if supplied
+      // Refresh user session with new token if supplied (e.g. role upgraded to BUSINESS_USER)
       if (bizRes.token) {
         await refreshUser(bizRes.token);
       } else {
@@ -156,6 +155,89 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
     } catch (err) {
       setError(err.message || 'Failed to complete registration and subscription.');
     } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleFinalSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // 1. If not logged in, register first as BUSINESS_USER
+      if (!user) {
+        await register({
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone || formData.businessPhone,
+          role: 'BUSINESS_USER',
+        });
+      }
+
+      const isPaid = selectedPlan && Number(selectedPlan.priceMonthly) > 0;
+
+      // 2. If free / trial tier, create business directly without Razorpay
+      if (!isPaid) {
+        await executeBusinessCreation(null);
+        return;
+      }
+
+      // 3. Paid plan -> Load Razorpay checkout script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error('Unable to load Razorpay payment SDK. Please check your internet connection.');
+      }
+
+      // 4. Create Razorpay order on backend
+      const orderRes = await api.createRazorpayOrder({
+        planId: selectedPlan.id,
+        notes: {
+          businessName: formData.businessName,
+          category: formData.category,
+          ownerEmail: user?.email || formData.email,
+        },
+      });
+
+      if (!orderRes.success || !orderRes.order) {
+        throw new Error(orderRes.error || 'Failed to initiate Razorpay checkout order.');
+      }
+
+      // 5. Open Razorpay Checkout modal
+      const options = {
+        key: orderRes.keyId || 'rzp_test_TqueU0bD2Nnjpq',
+        amount: orderRes.order.amount,
+        currency: orderRes.order.currency || 'INR',
+        name: 'QueueLess Business',
+        description: `${selectedPlan.name} Plan - ${formData.businessName}`,
+        order_id: orderRes.order.id,
+        prefill: {
+          name: user?.fullName || formData.fullName,
+          email: user?.email || formData.email || formData.businessEmail,
+          contact: user?.phone || formData.phone || formData.businessPhone,
+        },
+        theme: {
+          color: '#4f46e5',
+        },
+        modal: {
+          ondismiss: () => {
+            setSubmitting(false);
+          },
+        },
+        handler: async function (response) {
+          // Razorpay returns { razorpay_payment_id, razorpay_order_id, razorpay_signature }
+          await executeBusinessCreation(response);
+        },
+      };
+
+      const rzpInstance = new window.Razorpay(options);
+      rzpInstance.on('payment.failed', function (resp) {
+        setSubmitting(false);
+        setError(resp.error?.description || 'Payment failed or was cancelled. Please try again.');
+      });
+      rzpInstance.open();
+    } catch (err) {
+      setError(err.message || 'Failed to complete registration and subscription.');
       setSubmitting(false);
     }
   };
@@ -746,25 +828,122 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
                 </div>
               </div>
 
-              {/* Billing Info Notice */}
-              <div style={{ 
-                background: '#f0fdf4', 
-                border: '1px solid #bbf7d0', 
-                borderRadius: 12, 
-                padding: '14px 18px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 12,
-                fontSize: '0.85rem',
-                color: '#15803d'
-              }}>
-                <Zap size={20} />
-                <span>
-                  {selectedPlan?.priceMonthly > 0 
-                    ? `Instant activation! 30 days active billing begins today at ₹${selectedPlan?.priceMonthly}/month. Cancel or upgrade anytime.` 
-                    : '14 days full trial activated immediately with no credit card required.'}
-                </span>
-              </div>
+              {/* Razorpay Billing & Payment Box */}
+              {selectedPlan?.priceMonthly > 0 ? (
+                <div style={{
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                  border: '1.5px solid #c7d2fe',
+                  borderRadius: 14,
+                  padding: 22,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        background: '#4f46e5',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 10px rgba(79, 70, 229, 0.3)'
+                      }}>
+                        <CreditCard size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#1e1b4b' }}>
+                          Razorpay Payment Gateway
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#6366f1', fontWeight: 600 }}>
+                          Test Mode Active • Instant 30-Day Subscription
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: '#ecfdf5',
+                      border: '1px solid #a7f3d0',
+                      padding: '4px 10px',
+                      borderRadius: 20,
+                      color: '#065f46',
+                      fontSize: '0.75rem',
+                      fontWeight: 700
+                    }}>
+                      <ShieldCheck size={14} /> 256-Bit SSL Encrypted
+                    </div>
+                  </div>
+
+                  {/* Payment Breakdown */}
+                  <div style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 10,
+                    padding: '14px 18px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    fontSize: '0.86rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                      <span>{selectedPlan?.name} Monthly Base Fee</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>₹{selectedPlan?.priceMonthly}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                      <span>Platform Setup & Onboarding</span>
+                      <span style={{ fontWeight: 600, color: '#10b981' }}>FREE (₹0)</span>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      borderTop: '1px dashed #cbd5e1',
+                      paddingTop: 10,
+                      marginTop: 4,
+                      fontSize: '1rem',
+                      fontWeight: 800,
+                      color: '#0f172a'
+                    }}>
+                      <span>Total Due Today</span>
+                      <span style={{ color: '#4f46e5' }}>₹{selectedPlan?.priceMonthly}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: '0.78rem', color: '#64748b' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 700 }}>Supported Methods:</span>
+                      <span style={{ background: '#ffffff', padding: '2px 8px', borderRadius: 4, border: '1px solid #e2e8f0' }}>UPI / QR</span>
+                      <span style={{ background: '#ffffff', padding: '2px 8px', borderRadius: 4, border: '1px solid #e2e8f0' }}>Credit / Debit Cards</span>
+                      <span style={{ background: '#ffffff', padding: '2px 8px', borderRadius: 4, border: '1px solid #e2e8f0' }}>Net Banking</span>
+                    </div>
+                    <div style={{ color: '#475569', fontStyle: 'italic' }}>
+                      Key: <code style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: 4 }}>rzp_test_TqueU0bD2Nnjpq</code>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Free / Trial Plan Notice */
+                <div style={{ 
+                  background: '#f0fdf4', 
+                  border: '1px solid #bbf7d0', 
+                  borderRadius: 12, 
+                  padding: '14px 18px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 12,
+                  fontSize: '0.85rem',
+                  color: '#15803d'
+                }}>
+                  <Zap size={20} />
+                  <span>
+                    14 days full trial activated immediately with no credit card required. Experience QueueLess features with zero commitment.
+                  </span>
+                </div>
+              )}
 
               {/* Launch & Back Buttons */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
@@ -781,9 +960,27 @@ export default function JoinBusiness({ onSuccess, onCancel }) {
                   onClick={handleFinalSubmit}
                   className="btn-primary"
                   disabled={submitting}
-                  style={{ padding: '14px 32px', fontSize: '1rem', fontWeight: 700 }}
+                  style={{
+                    padding: '14px 34px',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)'
+                  }}
                 >
-                  {submitting ? 'Setting up Desk...' : 'Confirm & Launch Live Desk'} <ArrowRight size={18} />
+                  {submitting ? (
+                    'Processing Payment & Launch...'
+                  ) : selectedPlan?.priceMonthly > 0 ? (
+                    <>
+                      <CreditCard size={18} /> Pay ₹{selectedPlan?.priceMonthly} with Razorpay & Launch
+                    </>
+                  ) : (
+                    <>
+                      Confirm & Launch Free Trial <ArrowRight size={18} />
+                    </>
+                  )}
                 </button>
               </div>
             </div>

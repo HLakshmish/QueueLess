@@ -99,6 +99,11 @@ export const api = {
   getPlans: () => apiRequest('/subscriptions/plans'),
   subscribeBusiness: (data) => apiRequest('/subscriptions/subscribe', { method: 'POST', body: JSON.stringify(data) }),
 
+  // Payments (Razorpay)
+  getRazorpayConfig: () => apiRequest('/payments/razorpay/config'),
+  createRazorpayOrder: (data) => apiRequest('/payments/razorpay/create-order', { method: 'POST', body: JSON.stringify(data) }),
+  verifyRazorpayPayment: (data) => apiRequest('/payments/razorpay/verify', { method: 'POST', body: JSON.stringify(data) }),
+
   // Analytics
   getBusinessAnalytics: (businessId) => apiRequest(`/analytics/business/${businessId}`),
   getPlatformAnalytics: () => apiRequest('/analytics/platform'),

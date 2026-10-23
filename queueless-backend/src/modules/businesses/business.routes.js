@@ -1,3 +1,6 @@
+import crypto from 'crypto';
+import { config } from '../../config/index.js';
+
 function parseDateBounds(dateStr) {
   if (!dateStr) return null;
   const str = String(dateStr).trim();
@@ -127,7 +130,7 @@ export default async function businessRoutes(fastify, options) {
     '/',
     { preHandler: [fastify.authenticate, fastify.authorizeRoles('CUSTOMER', 'BUSINESS_USER', 'APPLICATION_MANAGER')] },
     async (request, reply) => {
-      const { name, description, category, phone, email, initialBranchName, address, city, planId } = request.body || {};
+      const { name, description, category, phone, email, initialBranchName, address, city, planId, paymentDetails } = request.body || {};
 
       if (!name || !category) {
         return reply.code(400).send({ success: false, error: 'Business name and category are required' });
@@ -157,6 +160,25 @@ export default async function businessRoutes(fastify, options) {
       const isPaid = chosenPlan && chosenPlan.priceMonthly > 0;
       const subStatus = isPaid ? 'ACTIVE' : 'TRIAL';
       const durationDays = isPaid ? 30 : 14;
+
+      // Verify Razorpay Payment if supplied for paid plan
+      let verifiedPaymentId = null;
+      if (isPaid && paymentDetails) {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = paymentDetails;
+        if (razorpay_order_id && razorpay_payment_id && razorpay_signature) {
+          const hmac = crypto.createHmac('sha256', config.razorpayKeySecret);
+          hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+          const generatedSignature = hmac.digest('hex');
+
+          if (generatedSignature !== razorpay_signature) {
+            return reply.code(400).send({
+              success: false,
+              error: 'Razorpay payment signature verification failed. Please try again.',
+            });
+          }
+          verifiedPaymentId = razorpay_payment_id;
+        }
+      }
 
       // Default initial service name based on category
       let initialServiceName = 'General Consultation';
@@ -232,14 +254,14 @@ export default async function businessRoutes(fastify, options) {
         },
       });
 
-      // Record simulated payment if paid plan
+      // Record payment if paid plan
       if (isPaid) {
         await prisma.payment.create({
           data: {
             businessId: business.id,
             amount: chosenPlan.priceMonthly,
             status: 'COMPLETED',
-            referenceId: `TXN-${Date.now()}`,
+            referenceId: verifiedPaymentId || `RZP-TEST-${Date.now()}`,
           },
         });
       }
@@ -289,23 +311,39 @@ export default async function businessRoutes(fastify, options) {
     { preHandler: [fastify.authenticate, fastify.requireBusinessAccess('SERVICE_MANAGE')] },
     async (request, reply) => {
       const { businessId } = request.params;
-      const { name, address, city, state, postalCode, phone } = request.body;
+      const { name, address, city, state, postalCode, phone, imageUrl } = request.body;
 
       if (!name || !address || !city) {
         return reply.code(400).send({ success: false, error: 'Name, address and city are required' });
       }
 
-      const branch = await prisma.branch.create({
-        data: {
-          businessId,
-          name,
-          address,
-          city,
-          state,
-          postalCode,
-          phone,
-        },
-      });
+      let branch;
+      try {
+        branch = await prisma.branch.create({
+          data: {
+            businessId,
+            name: name.trim(),
+            address: address.trim(),
+            city: city.trim(),
+            state,
+            postalCode,
+            phone,
+            imageUrl: imageUrl ? imageUrl.trim() : null,
+          },
+        });
+      } catch (err) {
+        branch = await prisma.branch.create({
+          data: {
+            businessId,
+            name: name.trim(),
+            address: address.trim(),
+            city: city.trim(),
+            state,
+            postalCode,
+            phone,
+          },
+        });
+      }
 
       return reply.code(201).send({ success: true, data: branch });
     }

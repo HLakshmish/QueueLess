@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Search, MapPin, Clock, Users, ArrowRight, CheckCircle2, AlertCircle, Building2, Sparkles, Lock, Ticket, Calendar, ChevronLeft, ChevronRight, Zap, Activity, ShieldCheck, Coffee, X } from 'lucide-react';
+import { Search, MapPin, Clock, Users, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Building2, Sparkles, Lock, Ticket, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Zap, Activity, ShieldCheck, Coffee, X } from 'lucide-react';
 import exploreHeroBanner from '../../assets/explore_hero_banner.jpg';
 
 const CATEGORY_ICONS = {
@@ -17,6 +17,45 @@ const CATEGORY_ICONS = {
   'Government & Academic': ShieldCheck,
   'Government Office': ShieldCheck,
 };
+
+const CATEGORY_DEFAULT_IMAGES = {
+  'Automotive & Service': 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=1000&q=80',
+  'Vehicle Service': 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=1000&q=80',
+  'Healthcare & Clinic': 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1000&q=80',
+  'Hospital & Diagnostic': 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1000&q=80',
+  'Diagnostic Centre': 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1000&q=80',
+  'Salon & Spa': 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1000&q=80',
+  'Restaurant & Food': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1000&q=80',
+  'Banking & Financial': 'https://images.unsplash.com/photo-1541354329998-f4d9a9f9297f?auto=format&fit=crop&w=1000&q=80',
+  'Government & Academic': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1000&q=80',
+  'Government Office': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1000&q=80',
+};
+
+function getBranchImage(branch, biz) {
+  if (branch?.imageUrl && branch.imageUrl.trim() !== '') {
+    return branch.imageUrl.trim();
+  }
+  if (biz?.category && CATEGORY_DEFAULT_IMAGES[biz.category]) {
+    return CATEGORY_DEFAULT_IMAGES[biz.category];
+  }
+  const text = `${biz?.name || ''} ${branch?.name || ''} ${biz?.category || ''}`.toLowerCase();
+  if (text.includes('car') || text.includes('wash') || text.includes('auto') || text.includes('vehicle') || text.includes('bike') || text.includes('motor')) {
+    return CATEGORY_DEFAULT_IMAGES['Automotive & Service'];
+  }
+  if (text.includes('clinic') || text.includes('health') || text.includes('doctor') || text.includes('hospital') || text.includes('dental')) {
+    return CATEGORY_DEFAULT_IMAGES['Healthcare & Clinic'];
+  }
+  if (text.includes('salon') || text.includes('spa') || text.includes('beauty') || text.includes('hair') || text.includes('barber')) {
+    return CATEGORY_DEFAULT_IMAGES['Salon & Spa'];
+  }
+  if (text.includes('food') || text.includes('cafe') || text.includes('restaurant') || text.includes('coffee') || text.includes('dine')) {
+    return CATEGORY_DEFAULT_IMAGES['Restaurant & Food'];
+  }
+  if (text.includes('bank') || text.includes('finance') || text.includes('loan')) {
+    return CATEGORY_DEFAULT_IMAGES['Banking & Financial'];
+  }
+  return 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1000&q=80';
+}
 
 function getFormattedDateString(d = new Date()) {
   const y = d.getFullYear();
@@ -83,6 +122,7 @@ export default function ExploreQueues({
   const [message, setMessage] = useState(null);
   const [modalError, setModalError] = useState(null);
   const [activeTicketsMap, setActiveTicketsMap] = useState({});
+  const [selectedBranchTarget, setSelectedBranchTarget] = useState(null);
 
   useEffect(() => {
     loadBusinesses(search, selectedDate);
@@ -347,309 +387,1258 @@ export default function ExploreQueues({
     return count;
   }, [businesses]);
 
+  const currentBranchData = React.useMemo(() => {
+    if (!selectedBranchTarget) return null;
+    const biz = businesses.find((b) => b.id === selectedBranchTarget.businessId);
+    if (!biz) return null;
+    const branch = biz.branches?.find((br) => br.id === selectedBranchTarget.branchId) || biz.branches?.[0] || null;
+    return { business: biz, branch };
+  }, [selectedBranchTarget, businesses]);
+
+  const branchCards = React.useMemo(() => {
+    const list = [];
+    filteredBusinesses.forEach((biz) => {
+      if (biz.branches && biz.branches.length > 0) {
+        biz.branches.forEach((branch) => {
+          list.push({
+            cardKey: `${biz.id}-${branch.id}`,
+            business: biz,
+            branch: branch,
+          });
+        });
+      } else {
+        list.push({
+          cardKey: `${biz.id}-main`,
+          business: biz,
+          branch: {
+            id: 'main',
+            name: 'Main Location',
+            city: '',
+            address: biz.address || '',
+            services: biz.services || [],
+          },
+        });
+      }
+    });
+    return list;
+  }, [filteredBusinesses]);
+
   return (
-    <div className="page-container" style={{ maxWidth: 1240 }}>
-      {/* Sleek Centered Pill Announcement Badge matching Reference Design */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <button
-          onClick={onJoinBusiness}
-          type="button"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 10,
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(245, 247, 255, 0.92) 100%)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1.5px solid rgba(199, 210, 254, 0.85)',
-            borderRadius: 9999,
-            padding: '5px 18px 5px 6px',
-            boxShadow: '0 6px 22px -4px rgba(99, 102, 241, 0.12), 0 2px 6px rgba(0, 0, 0, 0.02)',
-            cursor: 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            position: 'relative'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 10px 28px -4px rgba(99, 102, 241, 0.22), 0 4px 10px rgba(0, 0, 0, 0.04)';
-            e.currentTarget.style.borderColor = 'rgba(129, 140, 248, 0.95)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'none';
-            e.currentTarget.style.boxShadow = '0 6px 22px -4px rgba(99, 102, 241, 0.12), 0 2px 6px rgba(0, 0, 0, 0.02)';
-            e.currentTarget.style.borderColor = 'rgba(199, 210, 254, 0.85)';
-          }}
-        >
-          <div style={{
-            background: 'linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)',
-            color: '#ffffff',
-            width: 28,
-            height: 28,
-            borderRadius: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)'
-          }}>
-            <Building2 size={14} />
-          </div>
+    <div style={{ width: '100%' }}>
+      {currentBranchData ? (
+        /* ========================================================
+            INSIDE PAGE: DEDICATED BRANCH & SERVICE DESKS
+           ======================================================== */
+        (() => {
+          const { business: currentBusiness, branch: currentBranch } = currentBranchData;
+          const InsideBizIcon = CATEGORY_ICONS[currentBusiness.category] || Building2;
+          const branchAddressText = [currentBranch.city, currentBranch.address].filter(Boolean).join(' • ') || 'Main Location';
+          const openDesksCount = currentBranch.services?.filter(s => s.queues?.[0]?.status === 'OPEN').length || 0;
+          const totalDesks = currentBranch.services?.length || 0;
 
-          <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 500 }}>
-            Run a Clinic, Salon, or Service Desk?
-          </span>
-
-          <span style={{
-            fontSize: '0.82rem',
-            background: 'var(--accent-gradient)',
-            color: '#ffffff',
-            fontWeight: 800,
-            padding: '4px 14px',
-            borderRadius: 9999,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            boxShadow: '0 2px 10px rgba(99, 102, 241, 0.35)',
-            letterSpacing: '0.01em',
-            transition: 'all 0.15s ease'
-          }}>
-            Join Us as Business <ArrowRight size={13} color="#ffffff" />
-          </span>
-        </button>
-      </div>
-
-      {/* Apple-Inspired Radiant Hero Showcase */}
-      <div className="shining-card" style={{
-        padding: '44px 40px',
-        marginBottom: 36,
-        background: 'linear-gradient(135deg, #ffffff 0%, #f1f5fd 40%, #e6efff 100%)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1.5px solid #bfdbfe',
-        borderRadius: 28,
-        boxShadow: '0 20px 50px -15px rgba(59, 130, 246, 0.16), 0 4px 16px rgba(0, 0, 0, 0.03)',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        {/* Ambient Indigo-Cyan Soft Radial Diffused Lighting */}
-        <div style={{
-          position: 'absolute',
-          top: -100,
-          left: -100,
-          width: 340,
-          height: 340,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.20) 0%, rgba(6, 182, 212, 0.09) 50%, transparent 70%)',
-          pointerEvents: 'none'
-        }} />
-        <div style={{
-          position: 'absolute',
-          bottom: -80,
-          right: 320,
-          width: 300,
-          height: 300,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(6, 182, 212, 0.18) 0%, rgba(99, 102, 241, 0.09) 50%, transparent 70%)',
-          pointerEvents: 'none'
-        }} />
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 36, alignItems: 'center' }}>
-          <div>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 16px',
-              borderRadius: 24,
-              background: 'linear-gradient(135deg, rgba(238, 242, 255, 0.95) 0%, rgba(245, 243, 255, 0.95) 100%)',
-              border: '1px solid rgba(165, 180, 252, 0.7)',
-              color: '#4338ca',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              marginBottom: 18,
-              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.12)'
-            }}>
-              <Zap size={13} color="#4f46e5" fill="#4f46e5" /> Next-Gen Cloud Queue Stream
-            </div>
-
-            <h1 style={{
-              fontSize: 'clamp(2.2rem, 4.2vw, 3rem)',
-              marginBottom: 16,
-              letterSpacing: '-0.035em',
-              lineHeight: 1.15,
-              fontWeight: 850,
-              color: '#0f172a'
-            }}>
-              Never Wait in Line.{' '}
-              <span style={{
-                background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                Join Queues Remotely.
-              </span>
-            </h1>
-
-            <p style={{
-              color: '#475569',
-              fontSize: '1.04rem',
-              maxWidth: 520,
-              lineHeight: 1.6,
-              marginBottom: 26
-            }}>
-              Real-time token management for clinics, diagnostic centers, salons, banks, and service desks. Get instant notifications when your turn arrives.
-            </p>
-
-            {/* Elegant Pill-Shaped Search Input with Inset Gradient Submit Button */}
-            <form onSubmit={handleSearch} style={{ maxWidth: 520, width: '100%' }}>
+          return (
+            <div>
+              {/* Edge-to-Edge Full-Width Branch Hero Photo Banner - Out from the div */}
               <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: '#ffffff',
-                borderRadius: 9999,
-                padding: '6px 6px 6px 20px',
-                border: '2px solid rgba(129, 140, 248, 0.9)',
-                boxShadow: '0 10px 32px -4px rgba(99, 102, 241, 0.18), 0 2px 8px rgba(0, 0, 0, 0.04)',
-                transition: 'all 0.2s ease',
-                position: 'relative'
+                position: 'relative',
+                width: '100%',
+                minHeight: 360,
+                overflow: 'hidden',
+                marginBottom: 28,
+                borderBottom: '1px solid #e2e8f0',
+                boxShadow: '0 12px 36px -8px rgba(15, 23, 42, 0.12)',
+                background: '#0f172a'
               }}>
-                <Search size={19} color="#3b82f6" style={{ marginRight: 12, flexShrink: 0 }} />
-                <input 
-                  type="text"
+                {/* Full-width branch photo */}
+                <img 
+                  src={getBranchImage(currentBranch, currentBusiness)} 
+                  alt={currentBranch.name} 
                   style={{
-                    border: 'none',
-                    outline: 'none',
-                    background: 'transparent',
-                    fontSize: '0.96rem',
-                    fontWeight: 500,
-                    color: '#0f172a',
-                    flex: 1,
-                    padding: '8px 0',
-                    minWidth: 0
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    objectPosition: 'center 40%',
+                    display: 'block'
                   }}
-                  placeholder="Search clinic, doctor, salon, city..."
-                  value={search}
-                  onChange={handleSearchChange}
                 />
-                {search && (
+
+                {/* Subtle gradient overlay to ensure readability */}
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(15, 23, 42, 0.15) 45%, rgba(15, 23, 42, 0.78) 100%)'
+                }} />
+
+                {/* Top Floating Bar: Back Button & Live Desks status */}
+                <div style={{
+                  position: 'absolute',
+                  top: 24,
+                  left: 0,
+                  right: 0,
+                  zIndex: 3,
+                  padding: '0 max(24px, calc((100vw - 1100px) / 2))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap'
+                }}>
                   <button
                     type="button"
-                    onClick={handleClearSearch}
+                    onClick={() => setSelectedBranchTarget(null)}
                     style={{
-                      background: '#f1f5f9',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: 24,
-                      height: 24,
-                      display: 'flex',
+                      display: 'inline-flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 8,
+                      background: 'rgba(255, 255, 255, 0.94)',
+                      backdropFilter: 'blur(16px)',
+                      WebkitBackdropFilter: 'blur(16px)',
+                      border: '1px solid #ffffff',
+                      borderRadius: 24,
+                      padding: '8px 20px',
+                      fontSize: '0.86rem',
+                      fontWeight: 700,
+                      color: '#0f172a',
                       cursor: 'pointer',
-                      color: '#64748b',
-                      marginRight: 8,
-                      flexShrink: 0,
+                      boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.25)',
                       transition: 'all 0.15s ease'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#e2e8f0';
-                      e.currentTarget.style.color = '#0f172a';
+                      e.currentTarget.style.background = '#ffffff';
+                      e.currentTarget.style.transform = 'translateX(-2px)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#f1f5f9';
-                      e.currentTarget.style.color = '#64748b';
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.94)';
+                      e.currentTarget.style.transform = 'none';
                     }}
-                    title="Clear search"
                   >
-                    <X size={14} />
+                    <ArrowLeft size={16} /> Back to All Branches
                   </button>
-                )}
-                <button 
-                  type="submit" 
-                  style={{
-                    background: 'var(--accent-gradient)',
-                    color: '#ffffff',
-                    border: 'none',
+
+                  <div style={{
+                    background: openDesksCount > 0 ? 'rgba(240, 253, 244, 0.94)' : 'rgba(255, 255, 255, 0.94)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: `1px solid ${openDesksCount > 0 ? '#86efac' : '#e2e8f0'}`,
+                    color: openDesksCount > 0 ? '#166534' : '#64748b',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    padding: '8px 18px',
                     borderRadius: 9999,
-                    padding: '10px 24px',
-                    fontSize: '0.9rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease',
-                    flexShrink: 0
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 6px 18px rgba(99, 102, 241, 0.45)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'none';
-                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.35)';
-                  }}
-                >
-                  Search <ArrowRight size={15} />
-                </button>
+                    boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.2)'
+                  }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: openDesksCount > 0 ? '#16a34a' : '#94a3b8' }} />
+                    {openDesksCount > 0 ? `${openDesksCount} ${openDesksCount === 1 ? 'Desk' : 'Desks'} Open Live` : 'Desks Closed'}
+                  </div>
+                </div>
+
+                {/* Bottom Overlay Info on the Image: Branch Title & Category */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: 24,
+                  left: 0,
+                  right: 0,
+                  zIndex: 3,
+                  padding: '0 max(24px, calc((100vw - 1100px) / 2))',
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  flexWrap: 'wrap'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <span style={{
+                        background: 'rgba(255, 255, 255, 0.22)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: '1px solid rgba(255, 255, 255, 0.35)',
+                        color: '#ffffff',
+                        padding: '4px 14px',
+                        borderRadius: 20,
+                        fontSize: '0.8rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase'
+                      }}>
+                        Branch: {currentBranch.name}
+                      </span>
+                      <span style={{
+                        background: 'rgba(255, 255, 255, 0.94)',
+                        color: '#4338ca',
+                        border: '1px solid #ffffff',
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase'
+                      }}>
+                        {currentBusiness.category}
+                      </span>
+                      <span style={{
+                        background: 'rgba(16, 185, 129, 0.92)',
+                        color: '#ffffff',
+                        border: '1px solid rgba(255, 255, 255, 0.4)',
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5
+                      }}>
+                        <ShieldCheck size={13} color="#ffffff" /> Verified Business
+                      </span>
+                    </div>
+
+                    <h1 style={{
+                      fontSize: 'clamp(2rem, 3.8vw, 2.7rem)',
+                      fontWeight: 850,
+                      color: '#ffffff',
+                      margin: 0,
+                      letterSpacing: '-0.03em',
+                      textShadow: '0 2px 14px rgba(0,0,0,0.5)'
+                    }}>
+                      {currentBusiness.name}
+                    </h1>
+                  </div>
+                </div>
               </div>
-            </form>
-          </div>
 
-          {/* Right Hero Image Card */}
-          <div style={{
-            position: 'relative',
-            borderRadius: 24,
-            overflow: 'hidden',
-            boxShadow: '0 24px 50px -12px rgba(15, 23, 42, 0.18)',
-            border: '2px solid rgba(255, 255, 255, 0.95)'
-          }}>
-            <img 
-              src={exploreHeroBanner} 
-              alt="QueueLess Smart Service Lounge" 
-              style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }}
-            />
+              {/* Inside Page Content Container */}
+              <div className="page-container" style={{ maxWidth: 1040, margin: '0 auto', paddingBottom: 60, paddingTop: 4 }}>
+                {/* Top Overview & Action Box Widgets */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: 16,
+                  marginBottom: 24
+                }}>
+                  {/* Box 1: Business Identity & Description Card */}
+                  <div style={{
+                    gridColumn: 'span 2',
+                    background: '#ffffff',
+                    borderRadius: 20,
+                    border: '1.5px solid #e2e8f0',
+                    padding: '20px 24px',
+                    boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 16
+                  }}>
+                    <div style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 14,
+                      background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
+                      border: '1.5px solid #c7d2fe',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#4f46e5',
+                      flexShrink: 0,
+                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.12)'
+                    }}>
+                      <InsideBizIcon size={24} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          color: '#4338ca',
+                          fontSize: '0.86rem',
+                          fontWeight: 700,
+                          background: '#eef2ff',
+                          padding: '4px 12px',
+                          borderRadius: 14
+                        }}>
+                          <MapPin size={14} color="#4f46e5" />
+                          {branchAddressText}
+                        </span>
+                        <span style={{
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                          padding: '3px 10px',
+                          borderRadius: 12,
+                          background: '#ecfdf5',
+                          color: '#059669',
+                          border: '1px solid #a7f3d0'
+                        }}>
+                          ✓ Verified
+                        </span>
+                      </div>
+                      {currentBusiness.description ? (
+                        <p style={{
+                          color: '#475569',
+                          fontSize: '0.93rem',
+                          lineHeight: 1.55,
+                          margin: 0
+                        }}>
+                          {currentBusiness.description}
+                        </p>
+                      ) : (
+                        <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0, fontStyle: 'italic' }}>
+                          Official live queue desk operations for {currentBranch.name}.
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
+                  {/* Box 2: Desks Live Status Widget */}
+                  <div style={{
+                    background: '#ffffff',
+                    borderRadius: 20,
+                    border: '1.5px solid #e2e8f0',
+                    padding: '20px 22px',
+                    boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{
+                        width: 46,
+                        height: 46,
+                        borderRadius: 14,
+                        background: openDesksCount > 0 ? 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' : '#f8fafc',
+                        border: `1.5px solid ${openDesksCount > 0 ? '#a7f3d0' : '#e2e8f0'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: openDesksCount > 0 ? '#059669' : '#94a3b8'
+                      }}>
+                        <Zap size={22} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Service Desks
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          <span style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>{openDesksCount}</span>
+                          <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>/ {totalDesks} live</span>
+                        </div>
+                      </div>
+                    </div>
 
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 14px',
+                      borderRadius: 20,
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      background: openDesksCount > 0 ? '#f0fdf4' : '#f1f5f9',
+                      color: openDesksCount > 0 ? '#16a34a' : '#64748b',
+                      border: `1.5px solid ${openDesksCount > 0 ? '#bbf7d0' : '#e2e8f0'}`
+                    }}>
+                      <span style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        background: openDesksCount > 0 ? '#16a34a' : '#94a3b8'
+                      }} />
+                      {openDesksCount > 0 ? 'Live Now' : 'Closed'}
+                    </span>
+                  </div>
+                </div>
 
-            {/* Top-Left Floating Active Queue Count Badge */}
-            <div style={{
-              position: 'absolute',
-              top: 14,
-              left: 14,
-              background: 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(255, 255, 255, 0.9)',
-              borderRadius: 12,
-              padding: '6px 12px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.1)'
-            }}>
-              <Zap size={13} color="#4f46e5" fill="#4f46e5" />
-              <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#334155' }}>
-                {totalOpenQueues > 0 
-                  ? `${totalOpenQueues} Active Live ${totalOpenQueues === 1 ? 'Queue' : 'Queues'}`
-                  : 'Live Queues Ready'}
-              </span>
+                {/* Date Selector Navigation - Modern Calendar Box Buttons UI */}
+                <div style={{ marginBottom: 26 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    marginBottom: 12,
+                    flexWrap: 'wrap'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 10,
+                        background: 'rgba(99, 102, 241, 0.1)',
+                        color: '#4f46e5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Calendar size={16} />
+                      </div>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 850, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                        Queue Booking Date
+                      </h3>
+                    </div>
+                    <span style={{
+                      fontSize: '0.78rem',
+                      color: '#64748b',
+                      fontWeight: 600,
+                      background: '#ffffff',
+                      padding: '4px 12px',
+                      borderRadius: 12,
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      Selected: <strong style={{ color: '#4f46e5' }}>{formatFullDate(selectedDate)}</strong>
+                    </span>
+                  </div>
+
+                  {/* Responsive Box Buttons Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 14
+                  }}>
+                    {/* Box Button 1: TODAY */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(todayStr)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        padding: '16px 20px',
+                        borderRadius: 18,
+                        border: isSelectedToday ? '2px solid transparent' : '1.5px solid #e2e8f0',
+                        background: isSelectedToday 
+                          ? 'linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%)' 
+                          : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                        color: isSelectedToday ? '#ffffff' : '#0f172a',
+                        boxShadow: isSelectedToday 
+                          ? '0 10px 25px -4px rgba(67, 56, 202, 0.42), 0 4px 12px rgba(29, 78, 216, 0.2)' 
+                          : '0 2px 8px rgba(0, 0, 0, 0.03)',
+                        transform: isSelectedToday ? 'translateY(-2px)' : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+                        textAlign: 'left',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 10 }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          padding: '3px 8px',
+                          borderRadius: 8,
+                          background: isSelectedToday ? 'rgba(255, 255, 255, 0.2)' : 'rgba(99, 102, 241, 0.1)',
+                          color: isSelectedToday ? '#ffffff' : '#4f46e5'
+                        }}>
+                          <Sparkles size={11} /> TODAY
+                        </span>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: 8,
+                          background: isSelectedToday ? 'rgba(16, 185, 129, 0.25)' : '#ecfdf5',
+                          color: isSelectedToday ? '#6ee7b7' : '#059669'
+                        }}>
+                          Live Now
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 2 }}>
+                        {formatShortDate(todayStr)}
+                      </div>
+                      <div style={{
+                        fontSize: '0.76rem',
+                        color: isSelectedToday ? 'rgba(255, 255, 255, 0.85)' : '#64748b',
+                        fontWeight: 600
+                      }}>
+                        Real-time live queue booking
+                      </div>
+                    </button>
+
+                    {/* Box Button 2: TOMORROW */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(tomorrowStr)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        padding: '16px 20px',
+                        borderRadius: 18,
+                        border: selectedDate === tomorrowStr ? '2px solid transparent' : '1.5px solid #e2e8f0',
+                        background: selectedDate === tomorrowStr 
+                          ? 'linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%)' 
+                          : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                        color: selectedDate === tomorrowStr ? '#ffffff' : '#0f172a',
+                        boxShadow: selectedDate === tomorrowStr 
+                          ? '0 10px 25px -4px rgba(67, 56, 202, 0.42), 0 4px 12px rgba(29, 78, 216, 0.2)' 
+                          : '0 2px 8px rgba(0, 0, 0, 0.03)',
+                        transform: selectedDate === tomorrowStr ? 'translateY(-2px)' : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+                        textAlign: 'left',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 10 }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          padding: '3px 8px',
+                          borderRadius: 8,
+                          background: selectedDate === tomorrowStr ? 'rgba(255, 255, 255, 0.2)' : 'rgba(99, 102, 241, 0.1)',
+                          color: selectedDate === tomorrowStr ? '#ffffff' : '#4f46e5'
+                        }}>
+                          <Clock size={11} /> TOMORROW
+                        </span>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: 8,
+                          background: selectedDate === tomorrowStr ? 'rgba(255, 255, 255, 0.2)' : '#eff6ff',
+                          color: selectedDate === tomorrowStr ? '#bfdbfe' : '#2563eb'
+                        }}>
+                          Pre-book
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 2 }}>
+                        {formatShortDate(tomorrowStr)}
+                      </div>
+                      <div style={{
+                        fontSize: '0.76rem',
+                        color: selectedDate === tomorrowStr ? 'rgba(255, 255, 255, 0.85)' : '#64748b',
+                        fontWeight: 600
+                      }}>
+                        Advance token reservation
+                      </div>
+                    </button>
+
+                    {/* Box Button 3: CUSTOM DATE PICKER */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        padding: '16px 20px',
+                        borderRadius: 18,
+                        border: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '2px solid transparent' : '1.5px solid #e2e8f0',
+                        background: (selectedDate !== todayStr && selectedDate !== tomorrowStr) 
+                          ? 'linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%)' 
+                          : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                        color: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '#ffffff' : '#0f172a',
+                        boxShadow: (selectedDate !== todayStr && selectedDate !== tomorrowStr) 
+                          ? '0 10px 25px -4px rgba(67, 56, 202, 0.42), 0 4px 12px rgba(29, 78, 216, 0.2)' 
+                          : '0 2px 8px rgba(0, 0, 0, 0.03)',
+                        transform: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? 'translateY(-2px)' : 'none',
+                        position: 'relative',
+                        cursor: 'pointer',
+                        transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 10 }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          padding: '3px 8px',
+                          borderRadius: 8,
+                          background: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? 'rgba(255, 255, 255, 0.2)' : 'rgba(99, 102, 241, 0.1)',
+                          color: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '#ffffff' : '#4f46e5'
+                        }}>
+                          <Calendar size={11} /> OTHER DATE
+                        </span>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: 8,
+                          background: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? 'rgba(255, 255, 255, 0.2)' : '#f1f5f9',
+                          color: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '#ffffff' : '#64748b'
+                        }}>
+                          Calendar ▾
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 2 }}>
+                        {selectedDate !== todayStr && selectedDate !== tomorrowStr ? formatShortDate(selectedDate) : 'Pick A Date'}
+                      </div>
+                      <div style={{
+                        fontSize: '0.76rem',
+                        color: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? 'rgba(255, 255, 255, 0.85)' : '#64748b',
+                        fontWeight: 600
+                      }}>
+                        {selectedDate !== todayStr && selectedDate !== tomorrowStr ? formatFullDate(selectedDate) : 'Select future calendar day'}
+                      </div>
+
+                      {/* Hidden full-area date input */}
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        min={todayStr}
+                        onChange={(e) => {
+                          if (e.target.value) setSelectedDate(e.target.value);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          opacity: 0,
+                          cursor: 'pointer',
+                          width: '100%',
+                          height: '100%'
+                        }}
+                        title="Select custom date"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Branch Service Desks - Modern Box Button Cards Grid UI */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                  {[currentBranch].map((branch) => {
+                    const openQueuesCount = branch.services?.filter(s => s.queues?.[0]?.status === 'OPEN').length || 0;
+
+                    return (
+                      <div 
+                        key={branch.id} 
+                        style={{
+                          background: '#ffffff',
+                          border: '1.5px solid #e2e8f0',
+                          borderRadius: 24,
+                          padding: '24px 26px',
+                          boxShadow: '0 6px 22px rgba(0, 0, 0, 0.03)'
+                        }}
+                      >
+                        {/* Branch Bar Header */}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between',
+                          gap: 12, 
+                          paddingBottom: 18,
+                          marginBottom: 22,
+                          borderBottom: '1px solid #f1f5f9',
+                          flexWrap: 'wrap'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '1.12rem', color: '#0f172a', fontWeight: 850 }}>
+                            <div style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 11,
+                              background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
+                              border: '1px solid #c7d2fe',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#4f46e5'
+                            }}>
+                              <MapPin size={18} />
+                            </div>
+                            <div>
+                              <span style={{ textTransform: 'capitalize' }}>{branch.name}</span>
+                              {branch.address && (
+                                <span style={{ fontSize: '0.84rem', color: '#64748b', fontWeight: 500, marginLeft: 8 }}>
+                                  • {branch.address}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <span style={{ 
+                            fontSize: '0.82rem', 
+                            fontWeight: 800, 
+                            color: openQueuesCount > 0 ? '#166534' : '#64748b',
+                            background: openQueuesCount > 0 ? '#f0fdf4' : '#f8fafc',
+                            padding: '6px 14px',
+                            borderRadius: 18,
+                            border: `1.5px solid ${openQueuesCount > 0 ? '#bbf7d0' : '#e2e8f0'}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7
+                          }}>
+                            <span style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: openQueuesCount > 0 ? '#16a34a' : '#94a3b8'
+                            }} />
+                            {openQueuesCount > 0 ? `${openQueuesCount} ${openQueuesCount === 1 ? 'Desk' : 'Desks'} Open` : 'Closed'}
+                          </span>
+                        </div>
+
+                        {/* Services Grid - Modern Interactive Box Button Cards */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                          gap: 20
+                        }}>
+                          {branch.services?.map((service) => {
+                            const activeQueue = service.queues?.[0];
+                            const isQueueOpen = Boolean(activeQueue && activeQueue.status === 'OPEN');
+                            const isQueuePaused = Boolean(activeQueue && activeQueue.status === 'PAUSED');
+                            const waitingCount = activeQueue?.entries?.length || 0;
+                            const estWait = waitingCount * (service.avgDurationMinutes || 15);
+                            const waitLevel = getQueueWaitLevel(waitingCount, estWait);
+                            const hasActiveTicket = Boolean(activeQueue && activeTicketsMap[activeQueue.id]);
+                            const userTicket = hasActiveTicket ? activeTicketsMap[activeQueue.id] : null;
+
+                            return (
+                              <div 
+                                key={service.id} 
+                                style={{ 
+                                  display: 'flex', 
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  gap: 18,
+                                  background: hasActiveTicket 
+                                    ? 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 48%)' 
+                                    : 'linear-gradient(180deg, #ffffff 0%, #fcfdfe 100%)',
+                                  border: hasActiveTicket 
+                                    ? '2px solid #10b981' 
+                                    : isQueueOpen 
+                                    ? '1.5px solid #c7d2fe' 
+                                    : '1.5px solid #e2e8f0',
+                                  padding: '22px',
+                                  borderRadius: 20,
+                                  boxShadow: hasActiveTicket 
+                                    ? '0 10px 28px -4px rgba(16, 185, 129, 0.22)' 
+                                    : isQueueOpen
+                                    ? '0 6px 22px -4px rgba(99, 102, 241, 0.1), 0 2px 6px rgba(0, 0, 0, 0.02)'
+                                    : '0 2px 8px rgba(0, 0, 0, 0.02)',
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                }}
+                              >
+                                <div>
+                                  {/* Top Bar: Icon in Box Button & Live Availability Pill */}
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+                                    <div style={{
+                                      width: 44,
+                                      height: 44,
+                                      borderRadius: 13,
+                                      background: isQueueOpen ? 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)' : '#f1f5f9',
+                                      border: `1.5px solid ${isQueueOpen ? '#c7d2fe' : '#e2e8f0'}`,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: isQueueOpen ? '#4f46e5' : '#94a3b8',
+                                      boxShadow: isQueueOpen ? '0 2px 8px rgba(99, 102, 241, 0.12)' : 'none'
+                                    }}>
+                                      <Zap size={20} />
+                                    </div>
+
+                                    {isQueueOpen ? (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '5px 12px',
+                                        borderRadius: 20,
+                                        fontSize: '0.76rem',
+                                        fontWeight: 800,
+                                        background: '#f0fdf4',
+                                        color: '#15803d',
+                                        border: '1px solid #bbf7d0'
+                                      }}>
+                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a' }} />
+                                        {WAIT_LABELS[waitLevel] || 'Available'}
+                                      </span>
+                                    ) : isQueuePaused ? (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '5px 12px',
+                                        borderRadius: 20,
+                                        fontSize: '0.76rem',
+                                        fontWeight: 800,
+                                        background: '#fffbeb',
+                                        color: '#b45309',
+                                        border: '1px solid #fde68a'
+                                      }}>
+                                        <Clock size={13} color="#d97706" /> Paused
+                                      </span>
+                                    ) : (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '5px 12px',
+                                        borderRadius: 20,
+                                        fontSize: '0.76rem',
+                                        fontWeight: 800,
+                                        background: '#f1f5f9',
+                                        color: '#64748b',
+                                        border: '1px solid #e2e8f0'
+                                      }}>
+                                        <Clock size={13} color="#64748b" /> {isSelectedPast ? 'Closed' : 'Not Opened'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Service Title */}
+                                  <h3 style={{
+                                    fontWeight: 850,
+                                    fontSize: '1.18rem',
+                                    color: '#0f172a',
+                                    textTransform: 'capitalize',
+                                    margin: '0 0 6px 0',
+                                    letterSpacing: '-0.02em'
+                                  }}>
+                                    {service.name}
+                                  </h3>
+
+                                  {service.description && (
+                                    <p style={{ color: '#64748b', fontSize: '0.86rem', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                                      {service.description}
+                                    </p>
+                                  )}
+
+                                  {/* Metric Box Chips */}
+                                  <div style={{ display: 'flex', gap: 8, fontSize: '0.8rem', flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
+                                    {isQueueOpen ? (
+                                      <>
+                                        <span style={{ 
+                                          display: 'inline-flex', 
+                                          alignItems: 'center', 
+                                          gap: 6,
+                                          background: waitingCount > 0 ? '#fffbeb' : '#f8fafc',
+                                          border: `1.5px solid ${waitingCount > 0 ? '#fde68a' : '#e2e8f0'}`,
+                                          color: waitingCount > 0 ? '#92400e' : '#475569',
+                                          fontWeight: 750,
+                                          padding: '5px 12px',
+                                          borderRadius: 10
+                                        }}>
+                                          <Users size={14} color={waitingCount > 0 ? '#d97706' : '#64748b'} />
+                                          {waitingCount === 0 ? 'No waiting line' : `${waitingCount} waiting`}
+                                        </span>
+
+                                        <span style={{ 
+                                          display: 'inline-flex', 
+                                          alignItems: 'center', 
+                                          gap: 6,
+                                          background: '#f0fdf4',
+                                          border: '1.5px solid #dcfce7',
+                                          color: '#15803d',
+                                          fontWeight: 750,
+                                          padding: '5px 12px',
+                                          borderRadius: 10
+                                        }}>
+                                          <Clock size={14} color="#16a34a" /> ~{estWait} min wait
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                        {isSelectedPast 
+                                          ? 'Queue session closed for this date' 
+                                          : `Desk queue not active for ${isSelectedToday ? 'today' : formatShortDate(selectedDate)}`}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Bottom Action Box Button */}
+                                <div>
+                                  {isQueueOpen ? (
+                                    hasActiveTicket ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => onTicketIssued && onTicketIssued(userTicket.id)}
+                                        style={{
+                                          width: '100%',
+                                          padding: '13px 20px',
+                                          fontSize: '0.92rem',
+                                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                          border: 'none',
+                                          color: '#ffffff',
+                                          fontWeight: 800,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 9,
+                                          borderRadius: 14,
+                                          cursor: 'pointer',
+                                          boxShadow: '0 6px 18px rgba(16, 185, 129, 0.38)',
+                                          transition: 'all 0.15s ease'
+                                        }}
+                                      >
+                                        <Ticket size={17} color="#ffffff" />
+                                        <span>Ticket #Q-{userTicket.queueNumber} • View Status</span>
+                                        <ArrowRight size={16} />
+                                      </button>
+                                    ) : (
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleInitiateJoin(service, activeQueue, branch, currentBusiness)}
+                                        style={{ 
+                                          width: '100%',
+                                          padding: '13px 20px', 
+                                          fontSize: '0.92rem',
+                                          fontWeight: 850,
+                                          borderRadius: 14,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 9,
+                                          background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
+                                          color: '#ffffff',
+                                          border: 'none',
+                                          boxShadow: '0 6px 20px rgba(37, 99, 235, 0.35)',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.transform = 'translateY(-2px)';
+                                          e.currentTarget.style.boxShadow = '0 8px 24px rgba(37, 99, 235, 0.45)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.transform = 'none';
+                                          e.currentTarget.style.boxShadow = '0 6px 20px rgba(37, 99, 235, 0.35)';
+                                        }}
+                                      >
+                                        <Ticket size={17} color="#ffffff" />
+                                        <span>Join Queue {isSelectedToday ? 'Now' : `(${formatShortDate(selectedDate)})`}</span>
+                                        <ArrowRight size={17} />
+                                      </button>
+                                    )
+                                  ) : (
+                                    <button 
+                                      type="button"
+                                      disabled
+                                      style={{ 
+                                        width: '100%',
+                                        padding: '12px 18px', 
+                                        fontSize: '0.86rem', 
+                                        fontWeight: 750,
+                                        borderRadius: 14,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 7,
+                                        background: '#f1f5f9',
+                                        border: '1.5px solid #e2e8f0',
+                                        color: '#94a3b8',
+                                        cursor: 'not-allowed'
+                                      }}
+                                    >
+                                      <Clock size={15} color="#94a3b8" />
+                                      <span>{isSelectedPast ? 'Closed' : 'Desk Inactive'}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Other Branches of this company */}
+                {currentBusiness.branches && currentBusiness.branches.length > 1 && (
+                  <div style={{
+                    marginTop: 36,
+                    padding: '24px 28px',
+                    background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+                    borderRadius: 20,
+                    border: '1.5px solid #e2e8f0',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.02)'
+                  }}>
+                    <div style={{
+                      fontSize: '0.88rem',
+                      fontWeight: 800,
+                      color: '#475569',
+                      marginBottom: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
+                    }}>
+                      <Building2 size={16} color="#6366f1" />
+                      <span>Other Branches of {currentBusiness.name}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {currentBusiness.branches.filter(b => b.id !== currentBranch.id).map(otherBranch => (
+                        <button
+                          key={otherBranch.id}
+                          type="button"
+                          onClick={() => setSelectedBranchTarget({ businessId: currentBusiness.id, branchId: otherBranch.id })}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            background: '#ffffff',
+                            border: '1.5px solid #cbd5e1',
+                            borderRadius: 20,
+                            padding: '6px 16px 6px 6px',
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                            color: '#334155',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.03)',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#6366f1';
+                            e.currentTarget.style.color = '#4f46e5';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = '#cbd5e1';
+                            e.currentTarget.style.color = '#334155';
+                            e.currentTarget.style.transform = 'none';
+                          }}
+                        >
+                          <img 
+                            src={getBranchImage(otherBranch, currentBusiness)} 
+                            alt={otherBranch.name} 
+                            style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover' }}
+                          />
+                          <span>{otherBranch.name}</span>
+                          {otherBranch.city && <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500 }}>• {otherBranch.city}</span>}
+                          <ArrowRight size={13} color="#4f46e5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          );
+        })()
+      ) : (
+        /* MAIN EXPLORE VIEW */
+        <>
+
+      {/* Edge-to-Edge Full-Width Hero Image Banner - Outside container div */}
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        minHeight: 460,
+        overflow: 'hidden',
+        marginBottom: 28,
+        borderBottom: '1px solid #e2e8f0',
+        boxShadow: '0 12px 36px -8px rgba(15, 23, 42, 0.12)'
+      }}>
+        {/* Full-width clean background image */}
+        <img 
+          src={exploreHeroBanner} 
+          alt="QueueLess Smart Service Lounge" 
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center 40%',
+            display: 'block'
+          }}
+        />
+
+        {/* Luminous balanced contrast gradient overlay: keeps the whole reception photo bright and clear while providing high text readability */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(90deg, rgba(15, 23, 42, 0.82) 0%, rgba(15, 23, 42, 0.60) 48%, rgba(15, 23, 42, 0.25) 82%, rgba(15, 23, 42, 0.12) 100%)'
+        }} />
+
+        {/* Floating live queue count badge on top right - sleek white pill matching screenshot */}
+        <div style={{
+          position: 'absolute',
+          top: 24,
+          right: 28,
+          zIndex: 3,
+          background: 'rgba(255, 255, 255, 0.94)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid #ffffff',
+          borderRadius: 9999,
+          padding: '8px 18px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.2)'
+        }}>
+          <Zap size={15} color="#4f46e5" fill="#4f46e5" />
+          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>
+            {totalOpenQueues > 0 
+              ? `${totalOpenQueues} Active Live ${totalOpenQueues === 1 ? 'Queue' : 'Queues'}`
+              : '5 Active Live Queues'}
+          </span>
         </div>
 
-        {/* Categories with Icons */}
+        {/* Hero Content positioned directly over the full-width image */}
+        <div style={{
+          position: 'relative',
+          zIndex: 2,
+          padding: '52px 32px 52px max(28px, calc((100vw - 1280px) / 2))',
+          maxWidth: 720,
+          width: '100%'
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 16px',
+            borderRadius: 24,
+            background: 'rgba(255, 255, 255, 0.16)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.25)',
+            color: '#ffffff',
+            fontSize: '0.78rem',
+            fontWeight: 800,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            marginBottom: 16,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.15)'
+          }}>
+            <Zap size={13} color="#38bdf8" fill="#38bdf8" /> NEXT-GEN CLOUD QUEUE STREAM
+          </div>
+
+          <h1 style={{
+            fontSize: 'clamp(2.2rem, 4.4vw, 3.2rem)',
+            marginBottom: 14,
+            letterSpacing: '-0.035em',
+            lineHeight: 1.15,
+            fontWeight: 850,
+            color: '#ffffff',
+            textShadow: '0 2px 14px rgba(0,0,0,0.4)'
+          }}>
+            Never Wait in Line.{' '}
+            <span style={{
+              background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #c084fc 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              Join Queues Remotely.
+            </span>
+          </h1>
+
+          <p style={{
+            color: 'rgba(241, 245, 249, 0.95)',
+            fontSize: '1.04rem',
+            maxWidth: 580,
+            lineHeight: 1.6,
+            marginBottom: 26,
+            textShadow: '0 1px 4px rgba(0,0,0,0.4)'
+          }}>
+            Real-time token management for clinics, diagnostic centers, salons, banks, and service desks. Get instant notifications when your turn arrives.
+          </p>
+
+          {/* Elegant Pill-Shaped Search Input */}
+          <form onSubmit={handleSearch} style={{ maxWidth: 540, width: '100%' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: '#ffffff',
+              borderRadius: 9999,
+              padding: '6px 6px 6px 20px',
+              border: '2px solid rgba(255, 255, 255, 0.95)',
+              boxShadow: '0 12px 36px -4px rgba(0, 0, 0, 0.35)',
+              position: 'relative'
+            }}>
+              <Search size={19} color="#3b82f6" style={{ marginRight: 12, flexShrink: 0 }} />
+              <input 
+                type="text"
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  fontSize: '0.96rem',
+                  fontWeight: 500,
+                  color: '#0f172a',
+                  flex: 1,
+                  padding: '8px 0',
+                  minWidth: 0
+                }}
+                placeholder="Search clinic, doctor, salon, city..."
+                value={search}
+                onChange={handleSearchChange}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  style={{
+                    background: '#f1f5f9',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 24,
+                    height: 24,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    marginRight: 8,
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+              <button 
+                type="submit" 
+                style={{
+                  background: 'var(--accent-gradient)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 9999,
+                  padding: '10px 24px',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
+                }}
+              >
+                Search <ArrowRight size={15} />
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* PAGE CONTAINER: Separate Filter, Date, and Cards */}
+      <div className="page-container" style={{ maxWidth: 1320, paddingTop: 6 }}>
+        {/* SEPARATE CATEGORY FILTER SECTION */}
         <div style={{
           display: 'flex',
           gap: 8,
           justifyContent: 'center',
           flexWrap: 'wrap',
-          marginTop: 28,
-          paddingTop: 22,
-          borderTop: '1px solid rgba(199, 210, 254, 0.7)'
+          padding: '16px 20px',
+          background: '#ffffff',
+          borderRadius: 22,
+          border: '1.5px solid #e2e8f0',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+          marginBottom: 20
         }}>
           {categories.map((cat) => {
             const IconComp = CATEGORY_ICONS[cat] || Sparkles;
@@ -667,7 +1656,7 @@ export default function ExploreQueues({
                   fontSize: '0.82rem',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  background: isActive ? 'var(--accent-gradient)' : 'linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%)',
+                  background: isActive ? 'var(--accent-gradient)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
                   color: isActive ? '#ffffff' : '#334155',
                   border: `1.5px solid ${isActive ? 'transparent' : '#cbd5e1'}`,
                   boxShadow: isActive ? '0 4px 14px rgba(99, 102, 241, 0.35)' : '0 2px 6px rgba(0, 0, 0, 0.04)',
@@ -683,118 +1672,116 @@ export default function ExploreQueues({
         </div>
 
         {/* Date Selector Bar */}
+        {/* Date Selector Box Buttons Bar */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 10,
+          gap: 12,
           marginTop: 22,
           flexWrap: 'wrap'
         }}>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(todayStr)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              borderRadius: 14,
+              fontSize: '0.86rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              background: isSelectedToday ? 'var(--accent-gradient)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              color: isSelectedToday ? '#ffffff' : '#334155',
+              border: `1.5px solid ${isSelectedToday ? 'transparent' : '#cbd5e1'}`,
+              boxShadow: isSelectedToday ? '0 6px 18px -2px rgba(99, 102, 241, 0.4)' : '0 2px 6px rgba(0, 0, 0, 0.03)',
+              transform: isSelectedToday ? 'translateY(-1px)' : 'none',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}
+          >
+            <Sparkles size={15} color={isSelectedToday ? '#ffffff' : '#4f46e5'} />
+            <span>Today ({formatShortDate(todayStr)})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedDate(tomorrowStr)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              borderRadius: 14,
+              fontSize: '0.86rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              background: selectedDate === tomorrowStr ? 'var(--accent-gradient)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              color: selectedDate === tomorrowStr ? '#ffffff' : '#334155',
+              border: `1.5px solid ${selectedDate === tomorrowStr ? 'transparent' : '#cbd5e1'}`,
+              boxShadow: selectedDate === tomorrowStr ? '0 6px 18px -2px rgba(99, 102, 241, 0.4)' : '0 2px 6px rgba(0, 0, 0, 0.03)',
+              transform: selectedDate === tomorrowStr ? 'translateY(-1px)' : 'none',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}
+          >
+            <Clock size={15} color={selectedDate === tomorrowStr ? '#ffffff' : '#4f46e5'} />
+            <span>Tomorrow ({formatShortDate(tomorrowStr)})</span>
+          </button>
+
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              borderRadius: 14,
+              fontSize: '0.86rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              background: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? 'var(--accent-gradient)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              color: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '#ffffff' : '#334155',
+              border: `1.5px solid ${(selectedDate !== todayStr && selectedDate !== tomorrowStr) ? 'transparent' : '#cbd5e1'}`,
+              boxShadow: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '0 6px 18px -2px rgba(99, 102, 241, 0.4)' : '0 2px 6px rgba(0, 0, 0, 0.03)',
+              position: 'relative'
+            }}
+          >
+            <Calendar size={15} color={(selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '#ffffff' : '#4f46e5'} />
+            <span>{selectedDate !== todayStr && selectedDate !== tomorrowStr ? formatShortDate(selectedDate) : 'Pick Date'}</span>
+            <input
+              type="date"
+              value={selectedDate}
+              min={todayStr}
+              onChange={(e) => {
+                if (e.target.value) setSelectedDate(e.target.value);
+              }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                opacity: 0,
+                cursor: 'pointer',
+                width: '100%',
+                height: '100%'
+              }}
+              title="Select custom date"
+            />
+          </div>
+
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 8,
-            background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            padding: '7px 18px',
-            borderRadius: 24,
-            border: '1.5px solid #c7d2fe',
-            boxShadow: '0 4px 18px -4px rgba(99, 102, 241, 0.12)',
-            flexWrap: 'wrap'
+            gap: 6,
+            background: isSelectedToday ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' : isSelectedPast ? '#fffbeb' : '#f0fdf4',
+            border: `1px solid ${isSelectedToday ? '#93c5fd' : isSelectedPast ? '#fde68a' : '#bbf7d0'}`,
+            color: isSelectedToday ? '#1d4ed8' : isSelectedPast ? '#b45309' : '#15803d',
+            padding: '7px 14px',
+            borderRadius: 14,
+            fontSize: '0.8rem',
+            fontWeight: 800
           }}>
-            <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Calendar size={15} color="#4f46e5" />
-              Queue Date:
-            </span>
-
-            <button
-              onClick={() => setSelectedDate(todayStr)}
-              style={{
-                padding: '6px 15px',
-                borderRadius: 18,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                background: isSelectedToday ? 'var(--accent-gradient)' : '#f8fafc',
-                color: isSelectedToday ? '#ffffff' : '#334155',
-                border: `1px solid ${isSelectedToday ? 'transparent' : '#cbd5e1'}`,
-                boxShadow: isSelectedToday ? '0 3px 10px rgba(99, 102, 241, 0.28)' : 'none',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              Today ({formatShortDate(todayStr)})
-            </button>
-
-            <button
-              onClick={() => setSelectedDate(tomorrowStr)}
-              style={{
-                padding: '6px 15px',
-                borderRadius: 18,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                background: selectedDate === tomorrowStr ? 'var(--accent-gradient)' : '#f8fafc',
-                color: selectedDate === tomorrowStr ? '#ffffff' : '#334155',
-                border: `1px solid ${selectedDate === tomorrowStr ? 'transparent' : '#cbd5e1'}`,
-                boxShadow: selectedDate === tomorrowStr ? '0 3px 10px rgba(99, 102, 241, 0.28)' : 'none',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              Tomorrow ({formatShortDate(tomorrowStr)})
-            </button>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: 18,
-              padding: '5px 12px'
-            }}>
-              <Calendar size={13} color="#4f46e5" />
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                {selectedDate !== todayStr && selectedDate !== tomorrowStr ? formatShortDate(selectedDate) : 'Pick Date'}
-              </span>
-              <input
-                type="date"
-                value={selectedDate}
-                min={todayStr}
-                onChange={(e) => {
-                  if (e.target.value) setSelectedDate(e.target.value);
-                }}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  fontSize: '0.82rem',
-                  color: '#4f46e5',
-                  cursor: 'pointer',
-                  outline: 'none',
-                  width: 20
-                }}
-                title="Select custom date"
-              />
-            </div>
-
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              background: isSelectedToday ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' : isSelectedPast ? '#fffbeb' : '#f0fdf4',
-              border: `1px solid ${isSelectedToday ? '#93c5fd' : isSelectedPast ? '#fde68a' : '#bbf7d0'}`,
-              color: isSelectedToday ? '#1d4ed8' : isSelectedPast ? '#b45309' : '#15803d',
-              padding: '4px 10px',
-              borderRadius: 18,
-              fontSize: '0.78rem',
-              fontWeight: 800
-            }}>
-              <span>📅 {formatFullDate(selectedDate)}</span>
-            </div>
+            <span>📅 {formatFullDate(selectedDate)}</span>
           </div>
         </div>
-      </div>
 
       {message && (
         <div className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>
@@ -835,7 +1822,7 @@ export default function ExploreQueues({
               borderRadius: 20,
               boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)'
             }}>
-              {filteredBusinesses.length} {filteredBusinesses.length === 1 ? 'place' : 'places'}
+              {branchCards.length} {branchCards.length === 1 ? 'branch' : 'branches'}
             </span>
           </div>
 
@@ -876,357 +1863,148 @@ export default function ExploreQueues({
         </div>
 
         {loading ? (
-          <div className="grid-cols-2">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="skeleton skeleton-card" />
             ))}
           </div>
-        ) : filteredBusinesses.length === 0 ? (
+        ) : branchCards.length === 0 ? (
           <div className="glass-panel empty-state">
             <div className="empty-state-icon"><Search size={26} /></div>
-            <h3>No active businesses found</h3>
+            <h3>No active branches found</h3>
             <p>Try clearing filters or adjusting your search term.</p>
           </div>
         ) : (
-          <div className="grid-cols-2">
-            {filteredBusinesses.map((biz) => {
+          <div className="grid-cols-3">
+            {branchCards.map(({ cardKey, business: biz, branch }) => {
               const BizIcon = CATEGORY_ICONS[biz.category] || Building2;
+              const openQueuesCount = branch.services?.filter(s => s.queues?.[0]?.status === 'OPEN').length || 0;
+              const servicesCount = branch.services?.length || 0;
+              const branchLocationText = [branch.city, branch.address].filter(Boolean).join(' • ') || 'Main Location';
+
               return (
                 <div 
-                  key={biz.id} 
-                  className="shining-card" 
+                  key={cardKey} 
+                  className="shining-card branch-card-item" 
+                  onClick={() => setSelectedBranchTarget({ businessId: biz.id, branchId: branch.id })}
                   style={{ 
                     position: 'relative',
                     padding: 0, 
                     background: '#ffffff',
-                    borderRadius: 20,
-                    border: '1.5px solid #cbd5e1',
-                    boxShadow: '0 8px 30px -4px rgba(99, 102, 241, 0.10), 0 2px 8px -1px rgba(0, 0, 0, 0.05)',
+                    borderRadius: 22,
+                    border: '1.5px solid rgba(226, 232, 240, 0.9)',
+                    boxShadow: '0 8px 24px -4px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02)',
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                    cursor: 'pointer',
+                    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.borderColor = '#c7d2fe';
+                    e.currentTarget.style.boxShadow = '0 20px 38px -8px rgba(99, 102, 241, 0.2), 0 4px 12px rgba(0, 0, 0, 0.04)';
+                    const img = e.currentTarget.querySelector('.branch-card-img');
+                    if (img) img.style.transform = 'scale(1.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.9)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px -4px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02)';
+                    const img = e.currentTarget.querySelector('.branch-card-img');
+                    if (img) img.style.transform = 'scale(1)';
                   }}
                 >
-                  {/* Top Rainbow Accent Line */}
-                  <div style={{
-                    height: 3,
-                    background: 'linear-gradient(90deg, #6366f1 0%, #3b82f6 50%, #06b6d4 100%)',
-                    width: '100%'
-                  }} />
+                  {/* Card Top Image Cover - Pure clean image without any text/badges on top */}
+                  <div style={{ position: 'relative', height: 180, width: '100%', overflow: 'hidden', background: '#f1f5f9' }}>
+                    <img 
+                      src={getBranchImage(branch, biz)} 
+                      alt={branch.name}
+                      className="branch-card-img"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'cover', 
+                        display: 'block',
+                        transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
+                      }}
+                    />
+                  </div>
 
-                  <div style={{ padding: '24px 24px 20px 24px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    {/* Header with Icon, Category & Verified Badge */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
-                      <div style={{
-                        width: 50,
-                        height: 50,
-                        borderRadius: 15,
-                        background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
-                        border: '1.5px solid #c7d2fe',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        boxShadow: '0 4px 10px rgba(99, 102, 241, 0.12)'
-                      }}>
-                        <BizIcon size={24} color="#4f46e5" />
-                      </div>
+                  {/* Card Content Body */}
+                  <div style={{ padding: '18px 20px 18px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* Business Name */}
+                    <h3 style={{ 
+                      fontSize: '1.26rem', 
+                      fontWeight: 800, 
+                      color: '#0f172a',
+                      lineHeight: 1.25,
+                      letterSpacing: '-0.02em',
+                      margin: '0 0 8px 0',
+                      textTransform: 'capitalize'
+                    }}>
+                      {biz.name}
+                    </h3>
 
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                          <span style={{
-                            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                            color: '#334155',
-                            border: '1px solid #cbd5e1',
-                            padding: '3px 10px',
-                            borderRadius: 20,
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4
-                          }}>
-                            {biz.category}
-                          </span>
-
-                          <span style={{
-                            background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-                            color: '#065f46',
-                            border: '1px solid #a7f3d0',
-                            padding: '3px 9px',
-                            borderRadius: 20,
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4
-                          }}>
-                            <ShieldCheck size={12} color="#059669" /> Verified
-                          </span>
-                        </div>
-
-                        <h3 style={{ 
-                          fontSize: '1.35rem', 
-                          fontWeight: 800, 
-                          color: '#0f172a',
-                          lineHeight: 1.25,
-                          letterSpacing: '-0.02em',
-                          margin: 0
-                        }}>
-                          {biz.name}
-                        </h3>
-
-                        {biz.description && (
-                          <p style={{ 
-                            color: '#64748b', 
-                            fontSize: '0.88rem', 
-                            marginTop: 5, 
-                            marginBottom: 0,
-                            lineHeight: 1.5,
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden'
-                          }}>
-                            {biz.description}
-                          </p>
-                        )}
-                      </div>
+                    {/* Location Description */}
+                    <div style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: 6, 
+                      fontSize: '0.84rem', 
+                      fontWeight: 650, 
+                      color: '#4338ca',
+                      marginBottom: 10,
+                      background: 'rgba(99, 102, 241, 0.07)',
+                      padding: '4px 10px',
+                      borderRadius: 14,
+                      width: 'fit-content'
+                    }}>
+                      <MapPin size={13} color="#4f46e5" />
+                      <span>{branchLocationText}</span>
                     </div>
 
-                    {/* Branches & Services */}
-                    <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      {biz.branches?.map((branch) => (
-                        <div 
-                          key={branch.id} 
-                          style={{
-                            background: 'linear-gradient(135deg, #f8faff 0%, #f1f5f9 100%)',
-                            border: '1.5px solid #cbd5e1',
-                            borderRadius: 16,
-                            padding: '14px 16px',
-                            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.03)'
-                          }}
-                        >
-                          {/* Branch Bar */}
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between',
-                            gap: 8, 
-                            paddingBottom: 10,
-                            marginBottom: 10,
-                            borderBottom: '1px dashed #cbd5e1'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.86rem', color: '#1e293b', fontWeight: 700 }}>
-                              <div style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 6,
-                                background: '#ede9fe',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}>
-                                <MapPin size={13} color="#4f46e5" />
-                              </div>
-                              <span>{branch.name}</span>
-                            </div>
+                    {/* Description */}
+                    {biz.description && (
+                      <p style={{ 
+                        color: '#64748b', 
+                        fontSize: '0.87rem', 
+                        margin: '0 0 16px',
+                        lineHeight: 1.55,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
+                        {biz.description}
+                      </p>
+                    )}
 
-                            <span style={{ 
-                              fontSize: '0.74rem', 
-                              fontWeight: 700, 
-                              color: '#475569',
-                              background: '#ffffff',
-                              padding: '2px 9px',
-                              borderRadius: 12,
-                              border: '1px solid #cbd5e1'
-                            }}>
-                              {branch.city}
-                            </span>
-                          </div>
-
-                          {/* Services List */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {branch.services?.map((service) => {
-                              const activeQueue = service.queues?.[0];
-                              const isQueueOpen = Boolean(activeQueue && activeQueue.status === 'OPEN');
-                              const waitingCount = activeQueue?.entries?.length || 0;
-                              const estWait = waitingCount * (service.avgDurationMinutes || 15);
-                              const waitLevel = getQueueWaitLevel(waitingCount, estWait);
-
-                              return (
-                                <div 
-                                  key={service.id} 
-                                  style={{ 
-                                    display: 'flex', 
-                                    justifyContent: 'space-between', 
-                                    alignItems: 'center',
-                                    gap: 12,
-                                    flexWrap: 'wrap',
-                                    background: '#ffffff',
-                                    border: '1.5px solid #e2e8f0',
-                                    borderLeft: `4px solid ${isQueueOpen ? '#4f46e5' : '#94a3b8'}`,
-                                    padding: '12px 14px',
-                                    borderRadius: 12,
-                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease'
-                                  }}
-                                >
-                                  <div style={{ flex: 1, minWidth: 170 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 5 }}>
-                                      <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a' }}>
-                                        {service.name}
-                                      </span>
-                                      {isQueueOpen ? (
-                                        <span className={`queue-status queue-status-${waitLevel}`}>
-                                          <span className="queue-status-dot" />
-                                          {WAIT_LABELS[waitLevel]}
-                                        </span>
-                                      ) : activeQueue?.status === 'PAUSED' ? (
-                                        <span style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: 4,
-                                          background: '#fffbeb',
-                                          color: '#b45309',
-                                          border: '1px solid #fde68a',
-                                          padding: '2px 8px',
-                                          borderRadius: 12,
-                                          fontSize: '0.72rem',
-                                          fontWeight: 700
-                                        }}>
-                                          <Clock size={11} color="#d97706" /> Paused
-                                        </span>
-                                      ) : (
-                                        <span style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: 4,
-                                          background: '#f1f5f9',
-                                          color: '#64748b',
-                                          border: '1px solid #e2e8f0',
-                                          padding: '2px 8px',
-                                          borderRadius: 12,
-                                          fontSize: '0.72rem',
-                                          fontWeight: 700
-                                        }}>
-                                          <Clock size={11} color="#64748b" /> {isSelectedPast ? 'Queue Closed' : 'Desk Not Opened'}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Stats Chips */}
-                                    <div style={{ display: 'flex', gap: 8, fontSize: '0.75rem', flexWrap: 'wrap' }}>
-                                      {isQueueOpen ? (
-                                        <>
-                                          <span style={{ 
-                                            display: 'inline-flex', 
-                                            alignItems: 'center', 
-                                            gap: 4,
-                                            background: '#fffbeb',
-                                            border: '1px solid #fef3c7',
-                                            color: '#b45309',
-                                            fontWeight: 600,
-                                            padding: '2px 8px',
-                                            borderRadius: 6
-                                          }}>
-                                            <Users size={12} color="#f59e0b" /> {waitingCount} waiting
-                                          </span>
-                                          <span style={{ 
-                                            display: 'inline-flex', 
-                                            alignItems: 'center', 
-                                            gap: 4,
-                                            background: '#f0fdf4',
-                                            border: '1px solid #dcfce7',
-                                            color: '#15803d',
-                                            fontWeight: 600,
-                                            padding: '2px 8px',
-                                            borderRadius: 6
-                                          }}>
-                                            <Clock size={12} color="#16a34a" /> ~{estWait} min wait
-                                          </span>
-                                        </>
-                                      ) : (
-                                        <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
-                                          {isSelectedPast 
-                                            ? 'Queue session closed for this past date' 
-                                            : `Business has not opened the desk queue for ${isSelectedToday ? 'today' : formatShortDate(selectedDate)} yet`}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Action CTA */}
-                                  {isQueueOpen ? (
-                                    activeTicketsMap[activeQueue.id] ? (
-                                      <button
-                                        onClick={() => onTicketIssued && onTicketIssued(activeTicketsMap[activeQueue.id].id)}
-                                        className="btn-secondary"
-                                        style={{
-                                          padding: '8px 14px',
-                                          fontSize: '0.82rem',
-                                          background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-                                          borderColor: '#86efac',
-                                          color: '#15803d',
-                                          fontWeight: 700,
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: 6,
-                                          borderRadius: 10,
-                                          boxShadow: '0 2px 6px rgba(22, 163, 74, 0.12)'
-                                        }}
-                                        title="You already have an active ticket for this queue"
-                                      >
-                                        <Ticket size={14} color="#16a34a" /> View Ticket #Q-{activeTicketsMap[activeQueue.id].queueNumber}
-                                      </button>
-                                    ) : (
-                                      <button 
-                                        onClick={() => handleInitiateJoin(service, activeQueue, branch, biz)}
-                                        className="btn-primary"
-                                        style={{ 
-                                          padding: '8px 16px', 
-                                          fontSize: '0.84rem',
-                                          fontWeight: 700,
-                                          borderRadius: 10,
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: 6,
-                                          background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
-                                          boxShadow: '0 3px 10px rgba(79, 70, 229, 0.28)'
-                                        }}
-                                      >
-                                        Join Queue {isSelectedToday ? '' : `(${formatShortDate(selectedDate)})`} <ArrowRight size={14} />
-                                      </button>
-                                    )
-                                  ) : (
-                                    <button 
-                                      disabled
-                                      style={{ 
-                                        padding: '8px 14px', 
-                                        fontSize: '0.8rem', 
-                                        fontWeight: 700,
-                                        borderRadius: 10,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 6,
-                                        background: '#f1f5f9',
-                                        border: '1px solid #cbd5e1',
-                                        color: '#94a3b8',
-                                        cursor: 'not-allowed'
-                                      }}
-                                    >
-                                      {isSelectedPast ? 'Closed' : 'Desk Not Opened'}
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                    {/* Clean Footer Bar */}
+                    <div style={{
+                      marginTop: 'auto',
+                      paddingTop: 14,
+                      borderTop: '1px solid #f1f5f9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '0.84rem',
+                      fontWeight: 650,
+                      color: '#64748b'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: '50%',
+                          background: openQueuesCount > 0 ? '#16a34a' : '#94a3b8'
+                        }} />
+                        <span>{servicesCount} Service Desk{servicesCount > 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ color: '#4f46e5', fontWeight: 750, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span>Explore & Join Queue</span>
+                        <ArrowRight size={14} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1235,6 +2013,33 @@ export default function ExploreQueues({
           </div>
         )}
       </div>
+
+      {/* Bottom Join Us Call to Action */}
+      <div className="glass-panel" style={{
+        marginTop: 48,
+        padding: '36px 32px',
+        textAlign: 'center',
+        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        border: '1px solid #e2e8f0'
+      }}>
+        <div style={{ display: 'inline-flex', padding: 8, borderRadius: 12, background: '#ede9fe', color: '#4f46e5', marginBottom: 12 }}>
+          <Sparkles size={24} />
+        </div>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Ready to Transform Your Customer Experience?</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: 560, margin: '8px auto 20px' }}>
+          Choose from our flexible subscription plans, set up your branches and services in minutes, and manage queues in real-time.
+        </p>
+        <button 
+          onClick={onJoinBusiness}
+          className="btn-primary"
+          style={{ padding: '12px 28px', fontSize: '0.95rem' }}
+        >
+          Explore Subscription Plans & Register <ArrowRight size={16} />
+        </button>
+      </div>
+      </div>
+    </>
+  )}
 
       {/* Auth Required Modal */}
       {authRequiredService && (
@@ -1429,30 +2234,6 @@ export default function ExploreQueues({
           </div>
         </div>
       )}
-
-      {/* Bottom Join Us Call to Action */}
-      <div className="glass-panel" style={{
-        marginTop: 48,
-        padding: '36px 32px',
-        textAlign: 'center',
-        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-        border: '1px solid #e2e8f0'
-      }}>
-        <div style={{ display: 'inline-flex', padding: 8, borderRadius: 12, background: '#ede9fe', color: '#4f46e5', marginBottom: 12 }}>
-          <Sparkles size={24} />
-        </div>
-        <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Ready to Transform Your Customer Experience?</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: 560, margin: '8px auto 20px' }}>
-          Choose from our flexible subscription plans, set up your branches and services in minutes, and manage queues in real-time.
-        </p>
-        <button 
-          onClick={onJoinBusiness}
-          className="btn-primary"
-          style={{ padding: '12px 28px', fontSize: '0.95rem' }}
-        >
-          Explore Subscription Plans & Register <ArrowRight size={16} />
-        </button>
-      </div>
     </div>
   );
 }

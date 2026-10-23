@@ -17,7 +17,10 @@ import {
   Sparkles,
   Calendar,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Building2,
+  Layers,
+  MapPin
 } from 'lucide-react';
 
 function getFormattedDateString(d = new Date()) {
@@ -43,6 +46,9 @@ export default function BusinessDashboard() {
   const { user, activeBusiness } = useAuth();
   const todayStr = getFormattedDateString();
   const [selectedDate, setSelectedDate] = useState(() => getFormattedDateString());
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [selectedServiceId, setSelectedServiceId] = useState('');
   const [queues, setQueues] = useState([]);
   const [allServices, setAllServices] = useState([]);
   const [selectedQueue, setSelectedQueue] = useState(null);
@@ -57,7 +63,7 @@ export default function BusinessDashboard() {
     loadBusinessData(selectedDate);
   }, [activeBusiness, selectedDate]);
 
-  async function loadBusinessData(dateToLoad = selectedDate) {
+  async function loadBusinessData(dateToLoad = selectedDate, targetBranchId = null, targetServiceId = null) {
     if (!activeBusiness) {
       setLoading(false);
       return;
@@ -66,9 +72,10 @@ export default function BusinessDashboard() {
     try {
       const res = await api.getBusinessById(activeBusiness.id, { date: dateToLoad });
       if (res.success && res.data) {
+        const branchesList = res.data.branches || [];
         const foundQueues = [];
         const servicesList = [];
-        for (const branch of res.data.branches || []) {
+        for (const branch of branchesList) {
           for (const service of branch.services || []) {
             servicesList.push({ ...service, branch });
             for (const q of service.queues || []) {
@@ -76,14 +83,32 @@ export default function BusinessDashboard() {
             }
           }
         }
+        setBranches(branchesList);
         setAllServices(servicesList);
         setQueues(foundQueues);
-        if (foundQueues.length > 0) {
-          // If the previously selected queue still exists for this date, keep it; else first
-          const stillThere = foundQueues.find(q => q.id === selectedQueue?.id);
-          const queueToSelect = stillThere || foundQueues[0];
-          setSelectedQueue(queueToSelect);
-          loadQueueDetails(queueToSelect.id);
+
+        // Resolve branch to use
+        let branchIdToUse = targetBranchId || selectedBranchId;
+        if (!branchesList.some(b => b.id === branchIdToUse)) {
+          branchIdToUse = branchesList[0]?.id || '';
+        }
+        setSelectedBranchId(branchIdToUse);
+
+        const currentBranchObj = branchesList.find(b => b.id === branchIdToUse) || branchesList[0] || null;
+        const branchServices = currentBranchObj?.services || [];
+
+        // Resolve service to use
+        let serviceIdToUse = targetServiceId || selectedServiceId;
+        if (!branchServices.some(s => s.id === serviceIdToUse)) {
+          serviceIdToUse = branchServices[0]?.id || '';
+        }
+        setSelectedServiceId(serviceIdToUse);
+
+        // Find queue for this service and date
+        const matchingQueue = foundQueues.find(q => (q.serviceId === serviceIdToUse || q.service?.id === serviceIdToUse));
+        if (matchingQueue) {
+          setSelectedQueue(matchingQueue);
+          loadQueueDetails(matchingQueue.id);
         } else {
           setSelectedQueue(null);
         }
@@ -94,6 +119,37 @@ export default function BusinessDashboard() {
       setLoading(false);
     }
   }
+
+  const handleBranchChange = (branchId) => {
+    setSelectedBranchId(branchId);
+    const branchObj = branches.find(b => b.id === branchId);
+    const branchServices = branchObj?.services || [];
+    const firstServiceId = branchServices[0]?.id || '';
+    setSelectedServiceId(firstServiceId);
+
+    const matchingQueue = queues.find(q => (q.serviceId === firstServiceId || q.service?.id === firstServiceId));
+    if (matchingQueue) {
+      setSelectedQueue(matchingQueue);
+      loadQueueDetails(matchingQueue.id);
+    } else {
+      setSelectedQueue(null);
+    }
+  };
+
+  const handleServiceChange = (serviceId) => {
+    setSelectedServiceId(serviceId);
+    const matchingQueue = queues.find(q => (q.serviceId === serviceId || q.service?.id === serviceId));
+    if (matchingQueue) {
+      setSelectedQueue(matchingQueue);
+      loadQueueDetails(matchingQueue.id);
+    } else {
+      setSelectedQueue(null);
+    }
+  };
+
+  const currentBranch = branches.find(b => b.id === selectedBranchId) || branches[0] || null;
+  const currentBranchServices = currentBranch?.services || [];
+  const currentService = currentBranchServices.find(s => s.id === selectedServiceId) || currentBranchServices[0] || null;
 
   async function loadQueueDetails(queueId) {
     try {
@@ -156,7 +212,7 @@ export default function BusinessDashboard() {
         date: selectedDate,
       });
       if (res.success) {
-        await loadBusinessData(selectedDate);
+        await loadBusinessData(selectedDate, selectedBranchId, serviceId);
       }
     } catch (err) {
       alert(err.message || 'Failed to open queue for date');
@@ -462,51 +518,266 @@ export default function BusinessDashboard() {
           </span>
         </div>
 
-        {/* Queue Selector & Desk Controls */}
+        {/* Desk Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {queues.length > 1 && (
-            <select 
-              className="form-input" 
-              style={{ width: 'auto', padding: '8px 14px', fontSize: '0.88rem' }}
-              value={selectedQueue?.id}
-              onChange={(e) => {
-                const found = queues.find(q => q.id === e.target.value);
-                setSelectedQueue(found);
-                loadQueueDetails(e.target.value);
-              }}
-            >
-              {queues.map(q => (
-                <option key={q.id} value={q.id}>{q.service?.name} ({q.title})</option>
-              ))}
-            </select>
-          )}
-
           <button 
-            onClick={() => {
-              if (!selectedQueue?.id) {
-                if (allServices.length > 0) {
-                  handleOpenQueueForDate(allServices[0].id);
-                } else {
-                  handleQuickSetupQueue();
-                }
-                return;
-              }
-              setShowWalkInModal(true);
-            }} 
+            onClick={() => setShowWalkInModal(true)} 
             className="btn-primary"
             style={{ padding: '8px 14px', fontSize: '0.88rem' }}
           >
             <UserPlus size={16} /> Add Walk-in
           </button>
 
-          <button onClick={handleTogglePause} className="btn-secondary" style={{ padding: '8px 14px', fontSize: '0.88rem' }} disabled={!selectedQueue?.id}>
-            {selectedQueue?.status === 'OPEN' ? <><Pause size={16} /> Pause Queue</> : <><Play size={16} /> Resume Queue</>}
-          </button>
+          {selectedQueue ? (
+            <button onClick={handleTogglePause} className="btn-secondary" style={{ padding: '8px 14px', fontSize: '0.88rem' }}>
+              {selectedQueue.status === 'OPEN' ? <><Pause size={16} /> Pause Queue</> : <><Play size={16} /> Resume Queue</>}
+            </button>
+          ) : currentService && !isPast ? (
+            <button
+              onClick={() => handleOpenQueueForDate(currentService.id)}
+              disabled={actionLoading}
+              className="btn-secondary"
+              style={{ padding: '8px 14px', fontSize: '0.88rem' }}
+            >
+              <Play size={16} /> Open Queue
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {/* Info / Quick Setup if No Queue Exists for this Date */}
-      {queues.length === 0 && (
+      {/* Branch & Service Selector Strip */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: '#ffffff',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 16,
+        padding: '14px 20px',
+        marginBottom: 20,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+        flexWrap: 'wrap',
+        gap: 16
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          {/* Branch Location Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: 'rgba(37, 99, 235, 0.08)',
+              color: '#2563eb',
+              flexShrink: 0
+            }}>
+              <Building2 size={19} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Branch Location
+              </div>
+              {branches.length > 1 ? (
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => handleBranchChange(e.target.value)}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '0.92rem',
+                    fontWeight: 700,
+                    color: 'var(--text-main)',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-subtle)',
+                    background: '#f8fafc',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    marginTop: 2
+                  }}
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} {b.city ? `(${b.city})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {currentBranch?.name || 'Main Branch'}
+                  {currentBranch?.city && (
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                      • {currentBranch.city}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ width: 1, height: 34, background: 'var(--border-subtle)' }} />
+
+          {/* Service Desk Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: 'rgba(16, 185, 129, 0.08)',
+              color: '#10b981',
+              flexShrink: 0
+            }}>
+              <Layers size={19} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                Service Desk
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {currentBranchServices.length > 0 ? (
+                  currentBranchServices.map((srv) => {
+                    const isSelected = srv.id === selectedServiceId;
+                    const hasOpenQueue = queues.some(
+                      (q) => (q.serviceId === srv.id || q.service?.id === srv.id) && q.status === 'OPEN'
+                    );
+                    const hasAnyQueue = queues.some(
+                      (q) => (q.serviceId === srv.id || q.service?.id === srv.id)
+                    );
+
+                    return (
+                      <button
+                        key={srv.id}
+                        type="button"
+                        onClick={() => handleServiceChange(srv.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 7,
+                          padding: '6px 14px',
+                          borderRadius: 20,
+                          border: isSelected ? '2px solid #007bff' : '1px solid var(--border-subtle)',
+                          background: isSelected ? 'rgba(0, 123, 255, 0.08)' : '#f8fafc',
+                          color: isSelected ? '#007bff' : 'var(--text-main)',
+                          fontWeight: isSelected ? 700 : 500,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: hasOpenQueue ? '#10b981' : hasAnyQueue ? '#f59e0b' : '#cbd5e1'
+                          }}
+                          title={hasOpenQueue ? 'Queue is OPEN' : hasAnyQueue ? 'Queue is PAUSED/CLOSED' : 'Queue Not Opened Today'}
+                        />
+                        <span>{srv.name}</span>
+                        {srv.avgDurationMinutes && (
+                          <span style={{ fontSize: '0.72rem', color: isSelected ? '#007bff' : 'var(--text-muted)', opacity: 0.85 }}>
+                            ~{srv.avgDurationMinutes}m
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    No services in this branch.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right side: Active Desk Status Badge & Quick Open */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {selectedQueue ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 14px',
+              background: selectedQueue.status === 'OPEN' ? '#f0fdf4' : '#fffbeb',
+              border: `1px solid ${selectedQueue.status === 'OPEN' ? '#bbf7d0' : '#fde68a'}`,
+              borderRadius: 10,
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              color: selectedQueue.status === 'OPEN' ? '#166534' : '#92400e'
+            }}>
+              <span style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: selectedQueue.status === 'OPEN' ? '#16a34a' : '#d97706'
+              }} />
+              <span>Desk: <strong>{selectedQueue.status}</strong></span>
+            </div>
+          ) : currentService && !isPast ? (
+            <button
+              onClick={() => handleOpenQueueForDate(currentService.id)}
+              disabled={actionLoading}
+              className="btn-primary"
+              style={{ padding: '7px 16px', fontSize: '0.84rem' }}
+            >
+              <Sparkles size={15} /> Open Queue for {currentService.name}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Info / Quick Setup if Selected Service Queue is Not Open for this Date */}
+      {!selectedQueue && currentService && (
+        <div style={{
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: 14,
+          padding: '20px 24px',
+          marginBottom: 24,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 16,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ background: '#fef3c7', padding: 12, borderRadius: 12, color: '#d97706' }}>
+              <Calendar size={26} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#92400e' }}>
+                Queue Desk for "{currentService.name}" is Not Active on {formatDisplayDate(selectedDate)}
+              </div>
+              <p style={{ color: '#b45309', fontSize: '0.86rem', marginTop: 3 }}>
+                {isPast 
+                  ? `No queue sessions were recorded for this service on ${formatDisplayDate(selectedDate)}.` 
+                  : `Open the queue desk for ${currentService.name} (${currentBranch?.name || 'Main Branch'}) to begin issuing and calling tokens.`}
+              </p>
+            </div>
+          </div>
+
+          {!isPast && (
+            <button
+              onClick={() => handleOpenQueueForDate(currentService.id)}
+              disabled={actionLoading}
+              className="btn-primary"
+              style={{ padding: '10px 20px', fontSize: '0.88rem' }}
+            >
+              <Sparkles size={16} /> {actionLoading ? 'Opening...' : `Open Queue for ${currentService.name}`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* If No Services exist at all in the business */}
+      {allServices.length === 0 && (
         <div style={{
           background: '#fffbeb',
           border: '1px solid #fde68a',
@@ -526,40 +797,22 @@ export default function BusinessDashboard() {
             </div>
             <div>
               <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#92400e' }}>
-                No Queue Session Opened for {formatDisplayDate(selectedDate)}
+                No Services Configured
               </div>
               <p style={{ color: '#b45309', fontSize: '0.88rem', marginTop: 3 }}>
-                {isPast 
-                  ? 'No queue records were recorded for this past date.' 
-                  : 'Open a queue desk for this date so customers and walk-in visitors can take tokens.'}
+                Initialize your first branch and service queue to start taking walk-in customers and appointments.
               </p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {allServices.length > 0 ? (
-              allServices.map(srv => (
-                <button
-                  key={srv.id}
-                  onClick={() => handleOpenQueueForDate(srv.id)}
-                  disabled={actionLoading}
-                  className="btn-primary"
-                  style={{ padding: '10px 20px', fontSize: '0.88rem' }}
-                >
-                  <Sparkles size={16} /> Open Queue for {srv.name}
-                </button>
-              ))
-            ) : (
-              <button
-                onClick={handleQuickSetupQueue}
-                disabled={actionLoading}
-                className="btn-primary"
-                style={{ padding: '10px 22px', fontSize: '0.88rem' }}
-              >
-                <Sparkles size={16} /> {actionLoading ? 'Initializing...' : 'Initialize & Open First Queue'}
-              </button>
-            )}
-          </div>
+          <button
+            onClick={handleQuickSetupQueue}
+            disabled={actionLoading}
+            className="btn-primary"
+            style={{ padding: '10px 22px', fontSize: '0.88rem' }}
+          >
+            <Sparkles size={16} /> {actionLoading ? 'Initializing...' : 'Initialize & Open First Queue'}
+          </button>
         </div>
       )}
 
@@ -600,8 +853,12 @@ export default function BusinessDashboard() {
 
               <div className="stat-card">
                 <div className="stat-card-label">Service Desk</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 8 }}>
-                  {selectedQueue?.service?.name || allServices[0]?.name || 'Main Desk'}
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 8 }}>
+                  {selectedQueue?.service?.name || currentService?.name || 'Main Desk'}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <MapPin size={12} color="var(--text-muted)" />
+                  <span>{currentBranch?.name || 'Main Branch'}{currentBranch?.city ? `, ${currentBranch.city}` : ''}</span>
                 </div>
               </div>
 
@@ -623,51 +880,74 @@ export default function BusinessDashboard() {
               Currently Called / Serving at Desk
             </div>
 
-            {servingCustomer ? (
-              <div>
-                <div className="queue-number-hero">
-                  #Q-{String(servingCustomer.queueNumber).padStart(3, '0')}
+            {selectedQueue ? (
+              servingCustomer ? (
+                <div>
+                  <div className="queue-number-hero">
+                    #Q-{String(servingCustomer.queueNumber).padStart(3, '0')}
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: 6 }}>
+                    {servingCustomer.customerName}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 16 }}>
+                    <button 
+                      onClick={() => handleServe(servingCustomer.id)} 
+                      disabled={actionLoading}
+                      className="btn-success"
+                      style={{ padding: '8px 20px', fontSize: '0.9rem' }}
+                    >
+                      <Check size={16} /> Mark Served
+                    </button>
+                    <button 
+                      onClick={() => handleSkip(servingCustomer.id)} 
+                      disabled={actionLoading}
+                      className="btn-warning"
+                      style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                    >
+                      <FastForward size={16} /> Skip
+                    </button>
+                  </div>
                 </div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: 6 }}>
-                  {servingCustomer.customerName}
+              ) : (
+                <div style={{ padding: '16px 0', color: 'var(--text-dim)' }}>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>--</div>
+                  <p style={{ fontSize: '0.9rem' }}>No customer currently called to desk</p>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 16 }}>
-                  <button 
-                    onClick={() => handleServe(servingCustomer.id)} 
-                    disabled={actionLoading}
-                    className="btn-success"
-                    style={{ padding: '8px 20px', fontSize: '0.9rem' }}
-                  >
-                    <Check size={16} /> Mark Served
-                  </button>
-                  <button 
-                    onClick={() => handleSkip(servingCustomer.id)} 
-                    disabled={actionLoading}
-                    className="btn-warning"
-                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
-                  >
-                    <FastForward size={16} /> Skip
-                  </button>
-                </div>
-              </div>
+              )
             ) : (
-              <div style={{ padding: '16px 0', color: 'var(--text-dim)' }}>
-                <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>--</div>
-                <p style={{ fontSize: '0.9rem' }}>No customer currently called to desk</p>
+              <div style={{ padding: '24px 0', color: 'var(--text-dim)' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#92400e', marginBottom: 8 }}>
+                  Desk Inactive
+                </div>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                  Queue for {currentService?.name || 'this service'} is not open today.
+                </p>
+                {currentService && !isPast && (
+                  <button
+                    onClick={() => handleOpenQueueForDate(currentService.id)}
+                    disabled={actionLoading}
+                    className="btn-primary"
+                    style={{ margin: '0 auto', padding: '8px 20px', fontSize: '0.88rem' }}
+                  >
+                    <Sparkles size={16} /> Open Queue Desk
+                  </button>
+                )}
               </div>
             )}
 
-            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-              <button 
-                onClick={handleCallNext} 
-                disabled={actionLoading || waitingEntries.length === 0}
-                className="btn-primary" 
-                style={{ width: '100%', justifyContent: 'center', padding: '12px 20px', fontSize: '1rem' }}
-              >
-                <PhoneCall size={18} />
-                Call Next Customer ({waitingEntries.length} waiting)
-              </button>
-            </div>
+            {selectedQueue && (
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+                <button 
+                  onClick={handleCallNext} 
+                  disabled={actionLoading || waitingEntries.length === 0}
+                  className="btn-primary" 
+                  style={{ width: '100%', justifyContent: 'center', padding: '12px 20px', fontSize: '1rem' }}
+                >
+                  <PhoneCall size={18} />
+                  Call Next Customer ({waitingEntries.length} waiting)
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Waiting List Table matching Reference Mockup */}
@@ -792,62 +1072,62 @@ export default function BusinessDashboard() {
             {!selectedQueue?.id ? (
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
                 <p style={{ color: '#b45309', fontSize: '0.9rem', marginBottom: 16 }}>
-                  No active queue found. You must initialize or open a queue before issuing tickets.
+                  Queue for <strong>{currentService?.name || 'this service'}</strong> ({currentBranch?.name || 'Main Branch'}) is not active on {formatDisplayDate(selectedDate)}. Open it now to issue this ticket?
                 </p>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                   <button type="button" onClick={() => setShowWalkInModal(false)} className="btn-secondary">
                     Cancel
                   </button>
-                  <button 
-                    type="button" 
-                    onClick={async () => {
-                      await handleQuickSetupQueue();
-                      setShowWalkInModal(false);
-                    }} 
-                    className="btn-primary"
-                  >
-                    <Sparkles size={16} /> Initialize Queue Now
-                  </button>
+                  {currentService ? (
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        await handleOpenQueueForDate(currentService.id);
+                      }} 
+                      disabled={actionLoading}
+                      className="btn-primary"
+                    >
+                      <Sparkles size={16} /> Open Queue Now
+                    </button>
+                  ) : (
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        await handleQuickSetupQueue();
+                        setShowWalkInModal(false);
+                      }} 
+                      className="btn-primary"
+                    >
+                      <Sparkles size={16} /> Initialize Queue Now
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
               <form onSubmit={handleAddWalkIn}>
-                {queues.length > 1 ? (
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                      Select Queue *
-                    </label>
-                    <select
-                      className="form-input"
-                      value={selectedQueue.id}
-                      onChange={(e) => {
-                        const found = queues.find(q => q.id === e.target.value);
-                        setSelectedQueue(found);
-                        loadQueueDetails(e.target.value);
-                      }}
-                    >
-                      {queues.map(q => (
-                        <option key={q.id} value={q.id}>{q.service?.name} ({q.title})</option>
-                      ))}
-                    </select>
+                <div style={{ 
+                  background: '#f8fafc', 
+                  border: '1px solid var(--border-subtle)', 
+                  padding: '10px 14px', 
+                  borderRadius: 10, 
+                  fontSize: '0.84rem', 
+                  color: 'var(--text-muted)', 
+                  marginBottom: 16,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8
+                }}>
+                  <div>
+                    Branch: <strong style={{ color: 'var(--text-main)' }}>{currentBranch?.name || 'Main Branch'}</strong>
+                    <span style={{ margin: '0 6px', color: 'var(--border-subtle)' }}>•</span>
+                    Desk: <strong style={{ color: '#007bff' }}>{selectedQueue?.service?.name || currentService?.name}</strong>
                   </div>
-                ) : (
-                  <div style={{ 
-                    background: '#f8fafc', 
-                    border: '1px solid var(--border-subtle)', 
-                    padding: '8px 12px', 
-                    borderRadius: 8, 
-                    fontSize: '0.8rem', 
-                    color: 'var(--text-muted)', 
-                    marginBottom: 16,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <span>Target: <strong style={{ color: '#4f46e5' }}>{selectedQueue?.service?.name || selectedQueue?.title}</strong></span>
-                    <span>Date: <strong style={{ color: '#007bff' }}>{formatDisplayDate(selectedDate)}</strong></span>
+                  <div>
+                    Date: <strong style={{ color: 'var(--text-main)' }}>{formatDisplayDate(selectedDate)}</strong>
                   </div>
-                )}
+                </div>
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>

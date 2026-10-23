@@ -18,10 +18,12 @@ import subscriptionRoutes from './modules/subscriptions/subscription.routes.js';
 import analyticsRoutes from './modules/analytics/analytics.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
 import notificationRoutes from './modules/notifications/notification.routes.js';
+import paymentRoutes from './modules/payments/payment.routes.js';
 
 export async function buildApp() {
   const fastify = Fastify({
     logger: true,
+    bodyLimit: 15 * 1024 * 1024,
   });
 
   // CORS
@@ -77,6 +79,7 @@ export async function buildApp() {
       v1.register(analyticsRoutes, { prefix: '/analytics' });
       v1.register(adminRoutes, { prefix: '/admin' });
       v1.register(notificationRoutes, { prefix: '/notifications' });
+      v1.register(paymentRoutes, { prefix: '/payments' });
     },
     { prefix: '/api/v1' }
   );

@@ -1,54 +1,31 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../services/api';
 import {
   Clock,
   ArrowRight,
   ArrowLeft,
-  Users,
-  Store,
   Mail,
   Lock,
   Eye,
   EyeOff,
   User,
   Phone,
-  Building2,
-  Tag,
   CheckCircle2,
-  Zap,
   Activity,
-  Sparkles,
-  ShieldCheck
+  Sparkles
 } from 'lucide-react';
 import heroImg from '../../assets/login_hero.jpg';
 
 export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess, onBack }) {
-  const { register, refreshUser } = useAuth();
-  const [role, setRole] = useState('CUSTOMER'); // CUSTOMER or BUSINESS_USER
+  const { register } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
 
-  // Business-specific fields
-  const [businessName, setBusinessName] = useState('');
-  const [businessCategory, setBusinessCategory] = useState('Healthcare & Clinic');
-  const [plans, setPlans] = useState([]);
-  const [selectedPlanId, setSelectedPlanId] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  React.useEffect(() => {
-    api.getPlans().then(res => {
-      if (res.success && res.data?.length > 0) {
-        setPlans(res.data);
-        setSelectedPlanId(res.data[0].id);
-      }
-    }).catch(console.error);
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -61,28 +38,8 @@ export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess
         email,
         password,
         phone,
-        role,
+        role: 'CUSTOMER',
       });
-
-      // If registered as Business User, create the initial business entity
-      if (role === 'BUSINESS_USER' && businessName) {
-        const bRes = await api.createBusiness({
-          name: businessName,
-          category: businessCategory,
-          phone,
-          email,
-          initialBranchName: 'Main Branch',
-          address: 'Central Plaza',
-          city: 'Bengaluru',
-          planId: selectedPlanId,
-        });
-
-        if (bRes.token) {
-          await refreshUser(bRes.token);
-        } else {
-          await refreshUser();
-        }
-      }
 
       if (onRegisterSuccess) onRegisterSuccess();
     } catch (err) {
@@ -187,7 +144,7 @@ export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess
                 </span>
               </h3>
               <p className="light-hero-desc">
-                Register as a customer to hold live tokens remotely, or onboard your business desk to eliminate physical lines.
+                Register to hold live tokens remotely, track queues in real time, and eliminate physical waiting lines.
               </p>
             </div>
           </div>
@@ -196,7 +153,7 @@ export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess
           <div className="light-hero-bullets">
             <div className="light-bullet-item">
               <CheckCircle2 size={16} color="#059669" />
-              <span>Fast 1-minute setup for clinics, salons &amp; desks</span>
+              <span>Fast 1-minute setup to join live digital queues</span>
             </div>
             <div className="light-bullet-item">
               <CheckCircle2 size={16} color="#2563eb" />
@@ -216,7 +173,7 @@ export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess
               Create Your Account <span className="rocket-bounce">🚀</span>
             </h2>
             <p className="light-form-subtitle">
-              Choose customer or business account type to get started
+              Enter your details to create your account and get started
             </p>
           </div>
 
@@ -229,28 +186,6 @@ export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess
               </div>
             </div>
           )}
-
-          {/* Role Segment Toggle (Customer vs Business) */}
-          <div className="light-role-toggle-box">
-            <button
-              type="button"
-              onClick={() => setRole('CUSTOMER')}
-              className={`light-role-btn ${role === 'CUSTOMER' ? 'active-customer' : ''}`}
-            >
-              <Users size={15} />
-              <span>Customer Account</span>
-              {role === 'CUSTOMER' && <span className="active-glow-pip" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole('BUSINESS_USER')}
-              className={`light-role-btn ${role === 'BUSINESS_USER' ? 'active-business' : ''}`}
-            >
-              <Store size={15} />
-              <span>Business / Desk</span>
-              {role === 'BUSINESS_USER' && <span className="active-glow-pip green" />}
-            </button>
-          </div>
 
           {error && (
             <div className="light-error-banner">
@@ -315,81 +250,6 @@ export default function Register({ pendingQueue, onLoginClick, onRegisterSuccess
                 </div>
               </div>
             </div>
-
-            {/* Business Specific Fields (Only when role is BUSINESS_USER) */}
-            {role === 'BUSINESS_USER' && (
-              <div className="light-business-details-box">
-                <div className="light-biz-badge">
-                  <Sparkles size={12} color="#059669" />
-                  <span>Business Configuration</span>
-                </div>
-
-                <div className="light-grid-2-fields" style={{ marginTop: 10 }}>
-                  <div className="light-input-group">
-                    <label className="light-input-label">
-                      Business Name <span className="star-req">*</span>
-                    </label>
-                    <div className="light-input-wrapper">
-                      <input
-                        type="text"
-                        required
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="Sunshine Clinic"
-                        className="light-input"
-                      />
-                      <Building2 size={17} className="light-input-icon" />
-                      <span className="light-focus-line" />
-                    </div>
-                  </div>
-
-                  <div className="light-input-group">
-                    <label className="light-input-label">
-                      Category
-                    </label>
-                    <div className="light-input-wrapper">
-                      <select
-                        value={businessCategory}
-                        onChange={(e) => setBusinessCategory(e.target.value)}
-                        className="light-input light-select"
-                      >
-                        <option value="Healthcare & Clinic">Healthcare &amp; Clinic</option>
-                        <option value="Salon & Spa">Salon &amp; Spa</option>
-                        <option value="Restaurant & Food">Restaurant &amp; Food</option>
-                        <option value="Automotive & Service">Automotive &amp; Service</option>
-                        <option value="Banking & Financial">Banking &amp; Financial</option>
-                        <option value="Government & Academic">Government &amp; Academic</option>
-                      </select>
-                      <Tag size={17} className="light-input-icon" />
-                      <span className="light-focus-line" />
-                    </div>
-                  </div>
-                </div>
-
-                {plans.length > 0 && (
-                  <div className="light-input-group" style={{ marginTop: 12 }}>
-                    <label className="light-input-label">
-                      Subscription Tier
-                    </label>
-                    <div className="light-input-wrapper">
-                      <select
-                        value={selectedPlanId}
-                        onChange={(e) => setSelectedPlanId(e.target.value)}
-                        className="light-input light-select"
-                      >
-                        {plans.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} — {p.priceMonthly > 0 ? `₹${p.priceMonthly}/mo` : 'Free / Trial'}
-                          </option>
-                        ))}
-                      </select>
-                      <Zap size={17} className="light-input-icon" />
-                      <span className="light-focus-line" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Password Field */}
             <div className="light-input-group">

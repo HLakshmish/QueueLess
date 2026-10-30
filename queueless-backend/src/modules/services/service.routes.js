@@ -76,6 +76,37 @@ export default async function serviceRoutes(fastify, options) {
       const branch = await verifyBranchAccess(request, reply, branchId);
       if (!branch) return;
 
+      // Enforce subscription plan limit for services per branch
+      const branchDetails = await prisma.branch.findUnique({
+        where: { id: branchId },
+        include: {
+          business: {
+            include: {
+              subscription: {
+                include: { plan: true },
+              },
+            },
+          },
+          _count: {
+            select: { services: true },
+          },
+        },
+      });
+
+      const plan = branchDetails?.business?.subscription?.plan;
+      const maxServices = plan?.maxServices ?? 3;
+      const currentServices = branchDetails?._count?.services || 0;
+
+      if (currentServices >= maxServices) {
+        return reply.code(403).send({
+          success: false,
+          error: `Subscription limit reached: Your current ${plan?.name || 'Standard'} plan allows a maximum of ${maxServices} service${maxServices === 1 ? '' : 's'} per branch. This branch already has ${currentServices}. Please upgrade your subscription plan to add more services.`,
+          code: 'SUBSCRIPTION_SERVICE_LIMIT_REACHED',
+          limit: maxServices,
+          current: currentServices,
+        });
+      }
+
       const service = await prisma.service.create({
         data: {
           branchId,

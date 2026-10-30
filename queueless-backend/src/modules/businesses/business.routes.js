@@ -347,6 +347,37 @@ export default async function businessRoutes(fastify, options) {
         return reply.code(400).send({ success: false, error: 'Name, address and city are required' });
       }
 
+      // Enforce subscription plan limit for branches
+      const business = await prisma.business.findUnique({
+        where: { id: businessId },
+        include: {
+          subscription: {
+            include: { plan: true },
+          },
+          _count: {
+            select: { branches: true },
+          },
+        },
+      });
+
+      if (!business) {
+        return reply.code(404).send({ success: false, error: 'Business not found' });
+      }
+
+      const plan = business.subscription?.plan;
+      const maxBranches = plan?.maxBranches ?? 1;
+      const currentBranches = business._count.branches;
+
+      if (currentBranches >= maxBranches) {
+        return reply.code(403).send({
+          success: false,
+          error: `Subscription limit reached: Your current ${plan?.name || 'Standard'} plan allows a maximum of ${maxBranches} branch${maxBranches === 1 ? '' : 'es'}. You already have ${currentBranches} registered. Please upgrade your subscription plan to create additional branches.`,
+          code: 'SUBSCRIPTION_BRANCH_LIMIT_REACHED',
+          limit: maxBranches,
+          current: currentBranches,
+        });
+      }
+
       let branch;
       try {
         branch = await prisma.branch.create({

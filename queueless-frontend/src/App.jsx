@@ -122,7 +122,7 @@ function MainApp() {
 
         {/* Business User Views */}
         {currentView === 'business-desk' && <BusinessDashboard />}
-        {currentView === 'services' && <ServicesBranches />}
+        {currentView === 'services' && <ServicesBranches onNavigate={(view) => setCurrentView(view)} />}
         {currentView === 'business-analytics' && <BusinessAnalytics />}
         {currentView === 'subscription' && <SubscriptionBilling />}
 

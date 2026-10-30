@@ -124,6 +124,23 @@ export default function ExploreQueues({
   const [activeTicketsMap, setActiveTicketsMap] = useState({});
   const [selectedBranchTarget, setSelectedBranchTarget] = useState(null);
 
+  const heroDateInputRef = useRef(null);
+  const toolbarDateInputRef = useRef(null);
+
+  const triggerDatePicker = (inputRef) => {
+    if (inputRef && inputRef.current) {
+      try {
+        if (typeof inputRef.current.showPicker === 'function') {
+          inputRef.current.showPicker();
+        } else {
+          inputRef.current.focus();
+        }
+      } catch (e) {
+        inputRef.current?.focus();
+      }
+    }
+  };
+
   useEffect(() => {
     loadBusinesses(search, selectedDate);
   }, [selectedDate]);
@@ -959,6 +976,7 @@ export default function ExploreQueues({
 
                     {/* Box Button 3: CUSTOM DATE PICKER */}
                     <div
+                      onClick={() => triggerDatePicker(heroDateInputRef)}
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -1020,21 +1038,22 @@ export default function ExploreQueues({
 
                       {/* Hidden full-area date input */}
                       <input
+                        ref={heroDateInputRef}
                         type="date"
                         value={selectedDate}
                         min={todayStr}
                         onChange={(e) => {
                           if (e.target.value) setSelectedDate(e.target.value);
                         }}
-                        style={{
-                          position: 'absolute',
-                          inset: 0,
-                          opacity: 0,
-                          cursor: 'pointer',
-                          width: '100%',
-                          height: '100%'
+                        onClick={(e) => {
+                          try {
+                            if (typeof e.currentTarget.showPicker === 'function') {
+                              e.currentTarget.showPicker();
+                            }
+                          } catch (err) {}
                         }}
-                        title="Select custom date"
+                        className="clickable-date-overlay"
+                        title="Click to select custom date"
                       />
                     </div>
                   </div>
@@ -1760,6 +1779,7 @@ export default function ExploreQueues({
           </button>
 
           <div
+            onClick={() => triggerDatePicker(toolbarDateInputRef)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1773,27 +1793,29 @@ export default function ExploreQueues({
               color: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '#ffffff' : '#334155',
               border: `1.5px solid ${(selectedDate !== todayStr && selectedDate !== tomorrowStr) ? 'transparent' : '#cbd5e1'}`,
               boxShadow: (selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '0 6px 18px -2px rgba(99, 102, 241, 0.4)' : '0 2px 6px rgba(0, 0, 0, 0.03)',
-              position: 'relative'
+              position: 'relative',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
             }}
           >
             <Calendar size={15} color={(selectedDate !== todayStr && selectedDate !== tomorrowStr) ? '#ffffff' : '#4f46e5'} />
             <span>{selectedDate !== todayStr && selectedDate !== tomorrowStr ? formatShortDate(selectedDate) : 'Pick Date'}</span>
             <input
+              ref={toolbarDateInputRef}
               type="date"
               value={selectedDate}
               min={todayStr}
               onChange={(e) => {
                 if (e.target.value) setSelectedDate(e.target.value);
               }}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                opacity: 0,
-                cursor: 'pointer',
-                width: '100%',
-                height: '100%'
+              onClick={(e) => {
+                try {
+                  if (typeof e.currentTarget.showPicker === 'function') {
+                    e.currentTarget.showPicker();
+                  }
+                } catch (err) {}
               }}
-              title="Select custom date"
+              className="clickable-date-overlay"
+              title="Click to select custom date"
             />
           </div>
 

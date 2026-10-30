@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Store, Clock, MapPin, Edit2, Trash2, AlertTriangle, X, Check, Upload, Image as ImageIcon } from 'lucide-react';
+import { Plus, Store, Clock, MapPin, Edit2, Trash2, AlertTriangle, X, Check, Upload, Image as ImageIcon, ShieldAlert, Zap } from 'lucide-react';
 
 // Client-side image processor: compresses and resizes to lightweight DataURL
 const processImageFile = (file, callback) => {
@@ -38,9 +38,11 @@ const processImageFile = (file, callback) => {
   reader.readAsDataURL(file);
 };
 
-export default function ServicesBranches() {
+export default function ServicesBranches({ onNavigate }) {
   const { activeBusiness } = useAuth();
   const [branches, setBranches] = useState([]);
+  const [businessData, setBusinessData] = useState(null);
+  const [limitModal, setLimitModal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -89,12 +91,18 @@ export default function ServicesBranches() {
     if (!activeBusiness) return;
     setLoading(true);
     try {
-      const res = await api.getBusinessBranches(activeBusiness.id);
-      if (res.success) {
+      const [res, bRes] = await Promise.all([
+        api.getBusinessBranches(activeBusiness.id),
+        api.getBusinessById(activeBusiness.id).catch(() => null),
+      ]);
+      if (res?.success) {
         setBranches(res.data);
         if (res.data.length > 0 && !selectedBranchId) {
           setSelectedBranchId(res.data[0].id);
         }
+      }
+      if (bRes?.success) {
+        setBusinessData(bRes.data);
       }
     } catch (err) {
       console.error(err);
@@ -103,10 +111,28 @@ export default function ServicesBranches() {
     }
   }
 
+  // Plan limit calculations
+  const subscription = businessData?.subscription;
+  const currentPlan = subscription?.plan;
+  const maxBranches = currentPlan?.maxBranches ?? 1;
+  const maxServices = currentPlan?.maxServices ?? 3;
+  const maxDailyQueueLimit = currentPlan?.maxDailyQueueLimit ?? 50;
+  const isBranchLimitReached = branches.length >= maxBranches;
+
+  const currentSelectedBranch = branches.find((b) => b.id === selectedBranchId) || branches[0];
+  const isSelectedBranchServiceLimitReached = (currentSelectedBranch?.services?.length || 0) >= maxServices;
+
   // --- Branch Actions ---
 
   const handleCreateBranch = async (e) => {
     e.preventDefault();
+    if (isBranchLimitReached) {
+      setLimitModal({
+        title: 'Branch Limit Reached',
+        message: `Your current ${currentPlan?.name || 'Standard'} plan allows a maximum of ${maxBranches} branch${maxBranches > 1 ? 'es' : ''}. You currently have ${branches.length} registered. Please upgrade your subscription plan to add more branches.`,
+      });
+      return;
+    }
     if (!branchName || !branchAddress || !branchCity) return;
     setActionLoading(true);
     try {
@@ -125,7 +151,14 @@ export default function ServicesBranches() {
         await loadData();
       }
     } catch (err) {
-      alert(err.message);
+      if (err.message?.includes('Subscription limit') || err.message?.includes('plan allows')) {
+        setLimitModal({
+          title: 'Plan Limit Reached',
+          message: err.message,
+        });
+      } else {
+        alert(err.message);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -181,6 +214,13 @@ export default function ServicesBranches() {
 
   const handleCreateService = async (e) => {
     e.preventDefault();
+    if (isSelectedBranchServiceLimitReached) {
+      setLimitModal({
+        title: 'Service Limit Reached',
+        message: `Your current ${currentPlan?.name || 'Standard'} plan allows a maximum of ${maxServices} service${maxServices > 1 ? 's' : ''} per branch. "${currentSelectedBranch?.name}" already has ${currentSelectedBranch?.services?.length || 0} services. Please upgrade your subscription plan to add more services.`,
+      });
+      return;
+    }
     if (!serviceName) return;
     setActionLoading(true);
     try {
@@ -199,7 +239,14 @@ export default function ServicesBranches() {
         await loadData();
       }
     } catch (err) {
-      alert(err.message);
+      if (err.message?.includes('Subscription limit') || err.message?.includes('plan allows')) {
+        setLimitModal({
+          title: 'Plan Limit Reached',
+          message: err.message,
+        });
+      } else {
+        alert(err.message);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -260,14 +307,102 @@ export default function ServicesBranches() {
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={() => setShowAddBranch(true)} className="btn-secondary">
-            <Plus size={16} /> Add Branch
+          <button 
+            onClick={() => {
+              if (isBranchLimitReached) {
+                setLimitModal({
+                  title: 'Branch Limit Reached',
+                  message: `Your current ${currentPlan?.name || 'Standard'} plan allows a maximum of ${maxBranches} branch${maxBranches > 1 ? 'es' : ''}. You currently have ${branches.length} registered. Please upgrade your subscription plan to create additional branches.`,
+                });
+              } else {
+                setShowAddBranch(true);
+              }
+            }} 
+            className="btn-secondary"
+            style={isBranchLimitReached ? { borderColor: '#fde68a', background: '#fffbeb', color: '#b45309' } : {}}
+            title={isBranchLimitReached ? `Limit of ${maxBranches} branches reached for your plan` : 'Add Branch'}
+          >
+            <Plus size={16} /> Add Branch {isBranchLimitReached && `(${branches.length}/${maxBranches})`}
           </button>
           <button onClick={() => setShowAddService(true)} className="btn-primary" disabled={branches.length === 0}>
             <Plus size={16} /> Add Service
           </button>
         </div>
       </div>
+
+      {/* Subscription Plan Quotas Summary Card */}
+      {businessData && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 16,
+          padding: '14px 20px',
+          background: isBranchLimitReached ? '#fffbeb' : '#f8fafc',
+          borderRadius: 14,
+          border: isBranchLimitReached ? '1.5px solid #fde68a' : '1px solid var(--border-subtle)',
+          marginBottom: 20,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: isBranchLimitReached ? '#fef3c7' : '#ede9fe',
+              color: isBranchLimitReached ? '#d97706' : '#4f46e5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <ShieldAlert size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                  {currentPlan?.name || 'Trial'} Plan Quotas
+                </span>
+                <span className={`badge ${currentPlan?.name === 'Enterprise' ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>
+                  {subscription?.status || 'ACTIVE'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 4, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <span>
+                  Branches: <strong style={{ color: isBranchLimitReached ? '#dc2626' : 'var(--text-main)' }}>{branches.length} / {maxBranches}</strong>
+                  {isBranchLimitReached && <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: 4 }}>(Limit Reached)</span>}
+                </span>
+                <span>•</span>
+                <span>
+                  Max Services: <strong>{maxServices} / branch</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Daily Queue Entries: <strong>{maxDailyQueueLimit} / day</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigate && onNavigate('subscription')}
+            className="btn-secondary"
+            style={{
+              padding: '6px 14px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer'
+            }}
+          >
+            <Zap size={14} color="#eab308" /> Upgrade Plan
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -356,27 +491,53 @@ export default function ServicesBranches() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <h4 style={{ fontSize: '0.82rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-                    Offered Services ({b.services?.length || 0})
+                    Offered Services ({b.services?.length || 0} / {maxServices})
                   </h4>
-                  <button
-                    onClick={() => {
-                      setSelectedBranchId(b.id);
-                      setShowAddService(true);
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--accent-primary)',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    <Plus size={14} /> Add Service Here
-                  </button>
+                  {(b.services?.length || 0) >= maxServices ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLimitModal({
+                          title: 'Service Limit Reached',
+                          message: `Your current ${currentPlan?.name || 'Standard'} plan allows up to ${maxServices} services per branch. "${b.name}" has reached this limit (${b.services?.length}/${maxServices}). Upgrade your subscription plan to add more services.`,
+                        });
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#dc2626',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                      title="Service limit reached for this branch"
+                    >
+                      <AlertTriangle size={13} color="#dc2626" /> Service Limit Reached ({b.services?.length || 0}/{maxServices})
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setSelectedBranchId(b.id);
+                        setShowAddService(true);
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                    >
+                      <Plus size={14} /> Add Service Here
+                    </button>
+                  )}
                 </div>
 
                 {b.services?.length === 0 ? (
@@ -450,6 +611,45 @@ export default function ServicesBranches() {
               <p>Register a new location for your business</p>
             </div>
             <form onSubmit={handleCreateBranch}>
+              {isBranchLimitReached && (
+                <div style={{
+                  padding: 12,
+                  borderRadius: 10,
+                  background: '#fee2e2',
+                  border: '1px solid #fecaca',
+                  color: '#991b1b',
+                  marginBottom: 16,
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10
+                }}>
+                  <AlertTriangle size={18} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <strong style={{ display: 'block', marginBottom: 2 }}>Branch limit reached ({branches.length}/{maxBranches})</strong>
+                    <span>Your current {currentPlan?.name || 'Trial'} plan does not allow more than {maxBranches} branch{maxBranches > 1 ? 'es' : ''}. </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddBranch(false);
+                        onNavigate && onNavigate('subscription');
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        color: '#7f1d1d',
+                        fontWeight: 700,
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: 'inherit'
+                      }}
+                    >
+                      Upgrade Subscription Plan
+                    </button>
+                  </div>
+                </div>
+              )}
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Branch Name *</label>
                 <input className="form-input" placeholder="e.g. Koteshwara Branch" value={branchName} onChange={(e) => setBranchName(e.target.value)} required />
@@ -595,8 +795,8 @@ export default function ServicesBranches() {
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowAddBranch(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={actionLoading} className="btn-primary">
-                  {actionLoading ? 'Creating...' : 'Create Branch'}
+                <button type="submit" disabled={isBranchLimitReached || actionLoading} className="btn-primary">
+                  {actionLoading ? 'Creating...' : isBranchLimitReached ? 'Plan Limit Reached' : 'Create Branch'}
                 </button>
               </div>
             </form>
@@ -817,6 +1017,47 @@ export default function ServicesBranches() {
               <p>Configure consultation desk and estimated duration</p>
             </div>
             <form onSubmit={handleCreateService}>
+              {isSelectedBranchServiceLimitReached && (
+                <div style={{
+                  padding: 12,
+                  borderRadius: 10,
+                  background: '#fee2e2',
+                  border: '1px solid #fecaca',
+                  color: '#991b1b',
+                  marginBottom: 16,
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10
+                }}>
+                  <AlertTriangle size={18} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <strong style={{ display: 'block', marginBottom: 2 }}>
+                      Service limit reached for this branch ({currentSelectedBranch?.services?.length || 0}/{maxServices})
+                    </strong>
+                    <span>Selected branch already has the maximum services allowed on your {currentPlan?.name || 'Trial'} plan. </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddService(false);
+                        onNavigate && onNavigate('subscription');
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        color: '#7f1d1d',
+                        fontWeight: 700,
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: 'inherit'
+                      }}
+                    >
+                      Upgrade Subscription Plan
+                    </button>
+                  </div>
+                </div>
+              )}
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700, display: 'block', marginBottom: 4 }}>Branch *</label>
                 <select className="form-input" value={selectedBranchId} onChange={(e) => setSelectedBranchId(e.target.value)}>
@@ -839,8 +1080,8 @@ export default function ServicesBranches() {
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowAddService(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={actionLoading} className="btn-primary">
-                  {actionLoading ? 'Adding...' : 'Add Service'}
+                <button type="submit" disabled={isSelectedBranchServiceLimitReached || actionLoading} className="btn-primary">
+                  {actionLoading ? 'Adding...' : isSelectedBranchServiceLimitReached ? 'Plan Limit Reached' : 'Add Service'}
                 </button>
               </div>
             </form>
@@ -915,6 +1156,54 @@ export default function ServicesBranches() {
                 style={{ background: '#dc2626', color: '#fff' }}
               >
                 {actionLoading ? 'Deleting...' : 'Yes, Delete Service'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Limit Alert Modal */}
+      {limitModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440, textAlign: 'center', padding: '28px 24px' }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: '#fef3c7',
+              color: '#d97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px'
+            }}>
+              <ShieldAlert size={28} />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 8, color: 'var(--text-main)' }}>
+              {limitModal.title}
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 24 }}>
+              {limitModal.message}
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                onClick={() => setLimitModal(null)} 
+                className="btn-secondary" 
+                style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+              >
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setLimitModal(null);
+                  onNavigate && onNavigate('subscription');
+                }}
+                className="btn-primary" 
+                style={{ padding: '8px 20px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+              >
+                <Zap size={15} /> Upgrade Subscription
               </button>
             </div>
           </div>

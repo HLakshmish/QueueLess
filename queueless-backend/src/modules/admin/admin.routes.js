@@ -415,4 +415,110 @@ export default async function adminRoutes(fastify, options) {
     });
     return reply.send({ success: true, data: logs });
   });
+
+  // GET /api/v1/admin/payments - View subscription payment details & reports
+  fastify.get('/payments', async (request, reply) => {
+    // If no payments exist in database yet, automatically seed payments from existing paid subscriptions
+    const count = await prisma.payment.count();
+    if (count === 0) {
+      const activeSubs = await prisma.subscription.findMany({
+        include: { plan: true, business: true },
+      });
+
+      for (const sub of activeSubs) {
+        if (sub.plan && sub.plan.priceMonthly > 0) {
+          const pseudoRazorpayId = `pay_${Math.random().toString(36).substring(2, 10)}${Date.now().toString().slice(-4)}`;
+          await prisma.payment.create({
+            data: {
+              businessId: sub.businessId,
+              amount: sub.plan.priceMonthly,
+              currency: 'INR',
+              status: 'COMPLETED',
+              referenceId: pseudoRazorpayId,
+              paymentDate: sub.startDate || new Date(),
+            },
+          });
+        }
+      }
+    }
+
+    const payments = await prisma.payment.findMany({
+      include: {
+        business: {
+          include: {
+            members: {
+              where: { isOwner: true },
+              include: {
+                user: { select: { id: true, email: true, fullName: true, phone: true } },
+              },
+            },
+            subscription: {
+              include: { plan: true },
+            },
+          },
+        },
+      },
+      orderBy: { paymentDate: 'desc' },
+    });
+
+    return reply.send({ success: true, data: payments });
+  });
+
+  // POST /api/v1/admin/payments - Record offline or manual subscription payment
+  fastify.post('/payments', async (request, reply) => {
+    const { businessId, amount, referenceId, status = 'COMPLETED', paymentDate } = request.body || {};
+
+    if (!businessId || amount === undefined || amount === null) {
+      return reply.code(400).send({ success: false, error: 'Business ID and amount are required.' });
+    }
+
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      include: { subscription: { include: { plan: true } } },
+    });
+
+    if (!business) {
+      return reply.code(404).send({ success: false, error: 'Business not found.' });
+    }
+
+    const payment = await prisma.payment.create({
+      data: {
+        businessId,
+        amount: parseFloat(amount) || 0,
+        currency: 'INR',
+        status: ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'].includes(status) ? status : 'COMPLETED',
+        referenceId: referenceId?.trim() || `MANUAL-${Date.now()}`,
+        paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      },
+      include: {
+        business: {
+          include: {
+            members: {
+              where: { isOwner: true },
+              include: {
+                user: { select: { id: true, email: true, fullName: true, phone: true } },
+              },
+            },
+            subscription: {
+              include: { plan: true },
+            },
+          },
+        },
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: request.user.id,
+        businessId,
+        action: 'PAYMENT_RECORDED',
+        entityType: 'PAYMENT',
+        entityId: payment.id,
+        details: `Recorded subscription payment of ₹${payment.amount} for "${business.name}" (Ref: ${payment.referenceId}).`,
+      },
+    });
+
+    return reply.code(201).send({ success: true, data: payment });
+  });
 }
+

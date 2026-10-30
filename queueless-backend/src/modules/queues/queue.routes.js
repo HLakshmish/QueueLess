@@ -156,7 +156,23 @@ export default async function queueRoutes(fastify, options) {
       const result = await prisma.$transaction(async (tx) => {
         const queue = await tx.queue.findUnique({
           where: { id: queueId },
-          include: { service: true },
+          include: {
+            service: {
+              include: {
+                branch: {
+                  include: {
+                    business: {
+                      include: {
+                        subscription: {
+                          include: { plan: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (!queue) {
@@ -222,6 +238,23 @@ export default async function queueRoutes(fastify, options) {
           });
           if (currentActiveCount >= queue.maxCapacity) {
             throw new Error('QUEUE_CAPACITY_REACHED');
+          }
+        }
+
+        // Check subscription daily queue limit
+        const plan = queue.service?.branch?.business?.subscription?.plan;
+        const maxDailyLimit = plan?.maxDailyQueueLimit;
+        if (maxDailyLimit) {
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          const entriesToday = await tx.queueEntry.count({
+            where: {
+              queueId,
+              createdAt: { gte: todayStart },
+            },
+          });
+          if (entriesToday >= maxDailyLimit) {
+            throw new Error('PLAN_DAILY_LIMIT_REACHED');
           }
         }
 
@@ -307,6 +340,12 @@ export default async function queueRoutes(fastify, options) {
       }
       if (err.message === 'QUEUE_CAPACITY_REACHED') {
         return reply.code(400).send({ success: false, error: 'Queue capacity limit has been reached for today.' });
+      }
+      if (err.message === 'PLAN_DAILY_LIMIT_REACHED') {
+        return reply.code(403).send({
+          success: false,
+          error: 'Daily queue entry capacity reached for this business subscription plan. Please upgrade the subscription plan to issue more tokens today.',
+        });
       }
       throw err;
     }

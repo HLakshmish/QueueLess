@@ -23,7 +23,13 @@ import {
   Clock,
   Sparkles,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Receipt,
+  Download,
+  DollarSign,
+  TrendingUp,
+  Printer,
+  FileText
 } from 'lucide-react';
 
 const COMMON_FEATURES = [
@@ -92,6 +98,21 @@ export default function AdminDashboard() {
   });
   const [assigningSub, setAssigningSub] = useState(false);
 
+  // Payment Reports state
+  const [payments, setPayments] = useState([]);
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
+  const [paymentPlanFilter, setPaymentPlanFilter] = useState('ALL');
+  const [paymentDateRange, setPaymentDateRange] = useState('ALL');
+  const [recordPaymentModalOpen, setRecordPaymentModalOpen] = useState(false);
+  const [recordPaymentForm, setRecordPaymentForm] = useState({
+    businessId: '',
+    amount: '',
+    referenceId: '',
+    status: 'COMPLETED'
+  });
+  const [recordingPayment, setRecordingPayment] = useState(false);
+
   useEffect(() => {
     loadAll();
   }, []);
@@ -99,13 +120,14 @@ export default function AdminDashboard() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [statsRes, bizRes, usersRes, logsRes, plansRes, subsRes] = await Promise.all([
+      const [statsRes, bizRes, usersRes, logsRes, plansRes, subsRes, paymentsRes] = await Promise.all([
         api.getPlatformAnalytics().catch(() => ({ success: false })),
         api.getAdminBusinesses().catch(() => ({ success: false, data: [] })),
         api.getAdminUsers().catch(() => ({ success: false, data: [] })),
         api.getAdminAuditLogs().catch(() => ({ success: false, data: [] })),
         api.getAdminPlans().catch(() => ({ success: false, data: [] })),
         api.getAdminSubscriptions().catch(() => ({ success: false, data: [] })),
+        api.getAdminPayments().catch(() => ({ success: false, data: [] })),
       ]);
 
       if (statsRes.success) setStats(statsRes.data);
@@ -114,6 +136,7 @@ export default function AdminDashboard() {
       if (logsRes.success) setAuditLogs(logsRes.data || []);
       if (plansRes.success) setPlans(plansRes.data || []);
       if (subsRes.success) setSubscriptions(subsRes.data || []);
+      if (paymentsRes.success) setPayments(paymentsRes.data || []);
     } catch (err) {
       console.error('Error loading admin dashboard data:', err);
     } finally {
@@ -380,6 +403,109 @@ export default function AdminDashboard() {
     }
   };
 
+  const getPaymentStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'COMPLETED': return 'badge-serving';
+      case 'PENDING': return 'badge-waiting';
+      case 'FAILED': return 'badge-danger';
+      case 'REFUNDED': return 'badge-called';
+      default: return 'badge-waiting';
+    }
+  };
+
+  // Filter payments
+  const filteredPayments = payments.filter((p) => {
+    const owner = p.business?.members?.find(m => m.isOwner)?.user;
+    const planName = p.business?.subscription?.plan?.name || '';
+    const q = paymentSearch.toLowerCase().trim();
+
+    if (q) {
+      const matchesBiz = p.business?.name?.toLowerCase().includes(q);
+      const matchesOwner = owner?.fullName?.toLowerCase().includes(q) || owner?.email?.toLowerCase().includes(q);
+      const matchesRef = p.referenceId?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q);
+      const matchesPlan = planName.toLowerCase().includes(q);
+      if (!matchesBiz && !matchesOwner && !matchesRef && !matchesPlan) return false;
+    }
+
+    if (paymentStatusFilter !== 'ALL' && p.status !== paymentStatusFilter) return false;
+    if (paymentPlanFilter !== 'ALL' && planName !== paymentPlanFilter) return false;
+
+    if (paymentDateRange !== 'ALL') {
+      const pDate = new Date(p.paymentDate);
+      const now = new Date();
+      if (paymentDateRange === '7DAYS') {
+        const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (pDate < d7) return false;
+      } else if (paymentDateRange === '30DAYS') {
+        const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        if (pDate < d30) return false;
+      } else if (paymentDateRange === 'THIS_MONTH') {
+        if (pDate.getMonth() !== now.getMonth() || pDate.getFullYear() !== now.getFullYear()) return false;
+      }
+    }
+
+    return true;
+  });
+
+  const totalPaymentRevenue = filteredPayments
+    .filter(p => p.status === 'COMPLETED')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  const completedPaymentsCount = filteredPayments.filter(p => p.status === 'COMPLETED').length;
+  const avgPaymentAmount = completedPaymentsCount > 0 ? Math.round(totalPaymentRevenue / completedPaymentsCount) : 0;
+
+  const handleExportPaymentsCSV = () => {
+    if (filteredPayments.length === 0) {
+      alert('No payment records to export.');
+      return;
+    }
+    const headers = ['Transaction ID', 'Business Name', 'Category', 'Subscriber Name', 'Subscriber Email', 'Plan', 'Amount (INR)', 'Status', 'Payment Date'];
+    const rows = filteredPayments.map(p => {
+      const owner = p.business?.members?.find(m => m.isOwner)?.user;
+      const planName = p.business?.subscription?.plan?.name || 'Standard Plan';
+      const dateStr = new Date(p.paymentDate).toLocaleString();
+      return [
+        `"${p.referenceId || p.id}"`,
+        `"${p.business?.name || ''}"`,
+        `"${p.business?.category || ''}"`,
+        `"${owner?.fullName || 'N/A'}"`,
+        `"${owner?.email || 'N/A'}"`,
+        `"${planName}"`,
+        p.amount,
+        p.status,
+        `"${dateStr}"`
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `QueueLess_Subscription_Payments_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleRecordPaymentSubmit = async (e) => {
+    e.preventDefault();
+    setRecordingPayment(true);
+    try {
+      const res = await api.createAdminPayment(recordPaymentForm);
+      if (res.success) {
+        setRecordPaymentModalOpen(false);
+        setRecordPaymentForm({ businessId: '', amount: '', referenceId: '', status: 'COMPLETED' });
+        loadAll();
+      } else {
+        alert(res.error || 'Failed to record payment');
+      }
+    } catch (err) {
+      alert(err.message || 'Error recording payment');
+    } finally {
+      setRecordingPayment(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -425,6 +551,13 @@ export default function AdminDashboard() {
             style={{ padding: '8px 14px', fontSize: '0.85rem' }}
           >
             <Layers size={15} /> Subscription Plans ({plans.length})
+          </button>
+          <button 
+            onClick={() => setTab('payments')} 
+            className={tab === 'payments' ? 'btn-primary' : 'btn-secondary'} 
+            style={{ padding: '8px 14px', fontSize: '0.85rem' }}
+          >
+            <Receipt size={15} /> Payment Reports ({payments.length})
           </button>
           <button 
             onClick={() => setTab('businesses')} 
@@ -838,6 +971,310 @@ export default function AdminDashboard() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* --- TAB: SUBSCRIPTION PAYMENT REPORTS --- */}
+      {tab === 'payments' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Header Card */}
+          <div className="glass-panel" style={{ padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#059669', fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <Receipt size={16} /> Financial Audit & Settlements
+                </div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginTop: 4 }}>Subscription Payments & Revenue Report</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: 2 }}>
+                  Comprehensive financial audit of subscription payments, transaction receipts, plan revenues, and gateway settlements.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button 
+                  onClick={handleExportPaymentsCSV}
+                  className="btn-secondary" 
+                  style={{ padding: '9px 16px', fontSize: '0.85rem' }}
+                  title="Export filtered records to CSV"
+                >
+                  <Download size={15} /> Export CSV Report
+                </button>
+                <button 
+                  onClick={() => setRecordPaymentModalOpen(true)}
+                  className="btn-primary" 
+                  style={{ padding: '9px 16px', fontSize: '0.85rem' }}
+                >
+                  <Plus size={15} /> Record Manual Payment
+                </button>
+                <button 
+                  onClick={loadAll}
+                  className="btn-secondary" 
+                  style={{ padding: '9px 12px' }}
+                  title="Reload Payment Data"
+                >
+                  <RefreshCw size={15} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Revenue KPI Summary Grid */}
+          <div className="grid-cols-4">
+            <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Collected Revenue</span>
+                <div style={{ background: '#dcfce7', padding: 6, borderRadius: 8, color: '#15803d' }}><TrendingUp size={18} /></div>
+              </div>
+              <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#059669' }}>
+                ₹{totalPaymentRevenue.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#16a34a', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                <CheckCircle size={14} /> Completed Transactions Only
+              </div>
+            </div>
+
+            <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Successful Transactions</span>
+                <div style={{ background: '#ede9fe', padding: 6, borderRadius: 8, color: '#4f46e5' }}><CreditCard size={18} /></div>
+              </div>
+              <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#0f172a' }}>
+                {completedPaymentsCount} <span style={{ fontSize: '1rem', color: 'var(--text-dim)', fontWeight: 500 }}>/ {filteredPayments.length}</span>
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#4f46e5', marginTop: 4, fontWeight: 600 }}>
+                {filteredPayments.length > 0 ? `${Math.round((completedPaymentsCount / filteredPayments.length) * 100)}% Success Rate` : 'No transactions'}
+              </div>
+            </div>
+
+            <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Average Transaction Value</span>
+                <div style={{ background: '#e0e7ff', padding: 6, borderRadius: 8, color: '#4338ca' }}><DollarSign size={18} /></div>
+              </div>
+              <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#0f172a' }}>
+                ₹{avgPaymentAmount.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 600 }}>
+                Per Paid Subscription Cycle
+              </div>
+            </div>
+
+            <div className="shining-card" style={{ padding: 22, background: '#ffffff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Active Paid Subscribers</span>
+                <div style={{ background: '#fef3c7', padding: 6, borderRadius: 8, color: '#d97706' }}><Building size={18} /></div>
+              </div>
+              <div style={{ fontSize: '2.1rem', fontWeight: 800, marginTop: 6, color: '#0f172a' }}>
+                {subscriptions.filter(s => s.status === 'ACTIVE' && s.plan?.priceMonthly > 0).length}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#d97706', marginTop: 4, fontWeight: 600 }}>
+                Contributing Monthly Recurring Revenue
+              </div>
+            </div>
+          </div>
+
+          {/* Search, Filter & Date Toolbar */}
+          <div className="shining-card" style={{ padding: 20, background: '#ffffff' }}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 260, position: 'relative' }}>
+                <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
+                <input 
+                  type="text" 
+                  placeholder="Search business name, owner email, or transaction ID..." 
+                  value={paymentSearch}
+                  onChange={(e) => setPaymentSearch(e.target.value)}
+                  className="form-input" 
+                  style={{ paddingLeft: 38, fontSize: '0.9rem' }}
+                />
+              </div>
+
+              <select 
+                value={paymentStatusFilter} 
+                onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                className="form-input" 
+                style={{ width: 'auto', minWidth: 150, fontSize: '0.88rem' }}
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="COMPLETED">COMPLETED</option>
+                <option value="PENDING">PENDING</option>
+                <option value="FAILED">FAILED</option>
+                <option value="REFUNDED">REFUNDED</option>
+              </select>
+
+              <select 
+                value={paymentPlanFilter} 
+                onChange={(e) => setPaymentPlanFilter(e.target.value)}
+                className="form-input" 
+                style={{ width: 'auto', minWidth: 150, fontSize: '0.88rem' }}
+              >
+                <option value="ALL">All Plans</option>
+                {plans.map(p => (
+                  <option key={p.id} value={p.name}>{p.name}</option>
+                ))}
+              </select>
+
+              <select 
+                value={paymentDateRange} 
+                onChange={(e) => setPaymentDateRange(e.target.value)}
+                className="form-input" 
+                style={{ width: 'auto', minWidth: 150, fontSize: '0.88rem' }}
+              >
+                <option value="ALL">All Time</option>
+                <option value="THIS_MONTH">This Month</option>
+                <option value="30DAYS">Last 30 Days</option>
+                <option value="7DAYS">Last 7 Days</option>
+              </select>
+
+              {(paymentSearch || paymentStatusFilter !== 'ALL' || paymentPlanFilter !== 'ALL' || paymentDateRange !== 'ALL') && (
+                <button
+                  onClick={() => {
+                    setPaymentSearch('');
+                    setPaymentStatusFilter('ALL');
+                    setPaymentPlanFilter('ALL');
+                    setPaymentDateRange('ALL');
+                  }}
+                  className="btn-secondary"
+                  style={{ padding: '8px 14px', fontSize: '0.84rem' }}
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Payment Report Data Table */}
+          <div className="shining-card" style={{ padding: 24, background: '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+                Payment Transaction Records ({filteredPayments.length})
+              </div>
+              <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+                Showing records sorted by newest date
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '14px 16px' }}>Transaction Reference</th>
+                    <th style={{ padding: '14px 16px' }}>Subscribed Business</th>
+                    <th style={{ padding: '14px 16px' }}>Subscriber (Owner)</th>
+                    <th style={{ padding: '14px 16px' }}>Plan</th>
+                    <th style={{ padding: '14px 16px' }}>Amount</th>
+                    <th style={{ padding: '14px 16px' }}>Gateway / Method</th>
+                    <th style={{ padding: '14px 16px' }}>Status</th>
+                    <th style={{ padding: '14px 16px' }}>Payment Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
+                        <Receipt size={36} style={{ color: '#cbd5e1', marginBottom: 10 }} />
+                        <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-main)' }}>No payment transactions found</div>
+                        <div style={{ fontSize: '0.85rem', marginTop: 4 }}>Try clearing search keywords or status filters.</div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPayments.map((p) => {
+                      const owner = p.business?.members?.find(m => m.isOwner)?.user;
+                      const plan = p.business?.subscription?.plan;
+                      const isRazorpay = p.referenceId && (p.referenceId.startsWith('pay_') || p.referenceId.startsWith('RZP_'));
+                      const dateObj = new Date(p.paymentDate);
+
+                      return (
+                        <tr key={p.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: '#ffffff' }}>
+                          {/* Reference ID */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{ 
+                              fontFamily: 'monospace', 
+                              fontWeight: 700, 
+                              fontSize: '0.82rem', 
+                              background: '#f1f5f9', 
+                              padding: '3px 8px', 
+                              borderRadius: 6,
+                              color: '#334155'
+                            }}>
+                              {p.referenceId || p.id.slice(0, 8)}
+                            </span>
+                          </td>
+
+                          {/* Business */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{p.business?.name || 'Unknown Business'}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: 2 }}>
+                              {p.business?.category || 'General'}
+                            </div>
+                          </td>
+
+                          {/* Owner */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 600 }}>{owner?.fullName || 'Business Administrator'}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                              <Mail size={12} /> {owner?.email || 'N/A'}
+                            </div>
+                          </td>
+
+                          {/* Plan */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 700, color: '#4f46e5' }}>{plan?.name || 'Subscription Plan'}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+                              Monthly Billing Cycle
+                            </div>
+                          </td>
+
+                          {/* Amount */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 800, fontSize: '1rem', color: '#059669' }}>
+                              ₹{p.amount.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              {p.currency || 'INR'}
+                            </div>
+                          </td>
+
+                          {/* Gateway / Method */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: 5, 
+                              fontSize: '0.78rem', 
+                              fontWeight: 700, 
+                              color: isRazorpay ? '#0284c7' : '#475569',
+                              background: isRazorpay ? '#e0f2fe' : '#f1f5f9',
+                              padding: '3px 8px',
+                              borderRadius: 6
+                            }}>
+                              {isRazorpay ? 'Razorpay Gateway' : 'Manual / Offline'}
+                            </span>
+                          </td>
+
+                          {/* Status */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <span className={`badge ${getPaymentStatusBadgeClass(p.status)}`}>
+                              {p.status}
+                            </span>
+                          </td>
+
+                          {/* Date */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-main)' }}>
+                              {dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: 1 }}>
+                              {dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -1426,6 +1863,119 @@ export default function AdminDashboard() {
                   disabled={assigningSub}
                 >
                   {assigningSub ? 'Assigning...' : 'Assign Subscription'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- RECORD MANUAL PAYMENT MODAL --- */}
+      {recordPaymentModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 700 }}>Record Manual Subscription Payment</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginTop: 2 }}>
+                  Log an offline wire transfer, bank receipt, or cash subscription fee.
+                </p>
+              </div>
+              <button 
+                onClick={() => setRecordPaymentModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordPaymentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                  Select Business Account *
+                </label>
+                <select 
+                  required
+                  value={recordPaymentForm.businessId}
+                  onChange={(e) => {
+                    const bId = e.target.value;
+                    const b = businesses.find(x => x.id === bId);
+                    const defaultAmount = b?.subscription?.plan?.priceMonthly || '';
+                    setRecordPaymentForm({ ...recordPaymentForm, businessId: bId, amount: defaultAmount });
+                  }}
+                  className="form-input"
+                  style={{ fontSize: '0.9rem' }}
+                >
+                  <option value="">-- Choose a business --</option>
+                  {businesses.map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.subscription?.plan?.name || 'No Plan'} — ₹{b.subscription?.plan?.priceMonthly || 0}/mo)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                  Payment Amount (₹ INR) *
+                </label>
+                <input 
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  placeholder="e.g. 1499"
+                  value={recordPaymentForm.amount}
+                  onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, amount: e.target.value })}
+                  className="form-input"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                  Transaction / Bank Reference ID
+                </label>
+                <input 
+                  type="text"
+                  placeholder="e.g. UTR-9876543210 or BANK-TRANS-01"
+                  value={recordPaymentForm.referenceId}
+                  onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, referenceId: e.target.value })}
+                  className="form-input"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                  Settlement Status
+                </label>
+                <select 
+                  value={recordPaymentForm.status}
+                  onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, status: e.target.value })}
+                  className="form-input"
+                  style={{ fontSize: '0.9rem' }}
+                >
+                  <option value="COMPLETED">COMPLETED</option>
+                  <option value="PENDING">PENDING</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+                <button 
+                  type="button" 
+                  onClick={() => setRecordPaymentModalOpen(false)}
+                  className="btn-secondary"
+                  disabled={recordingPayment}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  disabled={recordingPayment}
+                >
+                  {recordingPayment ? 'Recording...' : 'Record Payment'}
                 </button>
               </div>
             </form>

@@ -61,12 +61,37 @@ async function authPlugin(fastify, options) {
             businessId: businessId,
           },
         },
+        include: {
+          business: {
+            include: { subscription: true },
+          },
+        },
       });
 
       if (!membership) {
         return reply.code(403).send({
           success: false,
           error: 'Forbidden: You are not an authorized member of this business',
+        });
+      }
+
+      // Check if subscription plan is active and not expired
+      const sub = membership.business?.subscription;
+      const isExpired = !sub ||
+        ['EXPIRED', 'CANCELLED', 'PAST_DUE', 'SUSPENDED'].includes(sub.status) ||
+        (sub.endDate && new Date(sub.endDate).getTime() <= Date.now());
+
+      if (isExpired) {
+        if (sub && sub.status !== 'EXPIRED' && sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) {
+          await fastify.prisma.subscription.update({
+            where: { id: sub.id },
+            data: { status: 'EXPIRED' },
+          }).catch(() => {});
+        }
+        return reply.code(403).send({
+          success: false,
+          error: 'Your subscription plan has expired. Please renew your subscription to access business actions.',
+          code: 'SUBSCRIPTION_EXPIRED',
         });
       }
 

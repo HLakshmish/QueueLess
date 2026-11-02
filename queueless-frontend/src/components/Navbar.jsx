@@ -13,7 +13,9 @@ import {
   Sparkles,
   Bell,
   Menu,
-  X
+  X,
+  Lock,
+  AlertTriangle
 } from 'lucide-react';
 
 function NavButton({ active, onClick, children, accent }) {
@@ -28,7 +30,7 @@ function NavButton({ active, onClick, children, accent }) {
 }
 
 export default function Navbar({ currentView, setCurrentView }) {
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, isSubscriptionActive } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -103,19 +105,104 @@ export default function Navbar({ currentView, setCurrentView }) {
     </>
   );
 
+  const handleProtectedBusinessNav = (targetView, label) => {
+    if (!isSubscriptionActive) {
+      alert(`Subscription Plan Expired: Your plan is over. Please take or renew your subscription to access ${label} and perform business actions.`);
+      navigate('subscription');
+      return;
+    }
+    navigate(targetView);
+  };
+
   const businessLinks = (
     <>
-      <NavButton active={currentView === 'business-desk'} onClick={() => navigate('business-desk')}>
-        <Layers size={16} /> Queue Desk
+      <NavButton
+        active={currentView === 'business-desk'}
+        onClick={() => handleProtectedBusinessNav('business-desk', 'Queue Desk')}
+      >
+        {!isSubscriptionActive ? <Lock size={15} color="#ef4444" /> : <Layers size={16} />}
+        <span>Queue Desk</span>
+        {!isSubscriptionActive && (
+          <span style={{
+            fontSize: '0.62rem',
+            background: 'rgba(239, 68, 68, 0.25)',
+            color: '#fca5a5',
+            border: '1px solid rgba(239, 68, 68, 0.45)',
+            padding: '1px 6px',
+            borderRadius: 8,
+            fontWeight: 800,
+            marginLeft: 3,
+          }}>
+            Expired
+          </span>
+        )}
       </NavButton>
-      <NavButton active={currentView === 'services'} onClick={() => navigate('services')}>
-        <Store size={16} /> Services & Counters
+
+      <NavButton
+        active={currentView === 'services'}
+        onClick={() => handleProtectedBusinessNav('services', 'Services & Counters')}
+      >
+        {!isSubscriptionActive ? <Lock size={15} color="#ef4444" /> : <Store size={16} />}
+        <span>Services &amp; Counters</span>
+        {!isSubscriptionActive && (
+          <span style={{
+            fontSize: '0.62rem',
+            background: 'rgba(239, 68, 68, 0.25)',
+            color: '#fca5a5',
+            border: '1px solid rgba(239, 68, 68, 0.45)',
+            padding: '1px 6px',
+            borderRadius: 8,
+            fontWeight: 800,
+            marginLeft: 3,
+          }}>
+            Expired
+          </span>
+        )}
       </NavButton>
-      <NavButton active={currentView === 'business-analytics'} onClick={() => navigate('business-analytics')}>
-        <BarChart3 size={16} /> Live Analytics
+
+      <NavButton
+        active={currentView === 'business-analytics'}
+        onClick={() => handleProtectedBusinessNav('business-analytics', 'Live Analytics')}
+      >
+        {!isSubscriptionActive ? <Lock size={15} color="#ef4444" /> : <BarChart3 size={16} />}
+        <span>Live Analytics</span>
+        {!isSubscriptionActive && (
+          <span style={{
+            fontSize: '0.62rem',
+            background: 'rgba(239, 68, 68, 0.25)',
+            color: '#fca5a5',
+            border: '1px solid rgba(239, 68, 68, 0.45)',
+            padding: '1px 6px',
+            borderRadius: 8,
+            fontWeight: 800,
+            marginLeft: 3,
+          }}>
+            Expired
+          </span>
+        )}
       </NavButton>
-      <NavButton active={currentView === 'subscription'} onClick={() => navigate('subscription')}>
-        <CreditCard size={16} /> Billing Plan
+
+      <NavButton
+        active={currentView === 'subscription'}
+        onClick={() => navigate('subscription')}
+        accent={!isSubscriptionActive}
+      >
+        <CreditCard size={16} />
+        <span>Billing Plan</span>
+        {!isSubscriptionActive && (
+          <span style={{
+            fontSize: '0.62rem',
+            background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
+            color: '#ffffff',
+            padding: '2px 8px',
+            borderRadius: 10,
+            fontWeight: 800,
+            marginLeft: 4,
+            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.5)',
+          }}>
+            Renew Plan
+          </span>
+        )}
       </NavButton>
     </>
   );
@@ -393,6 +480,49 @@ export default function Navbar({ currentView, setCurrentView }) {
         animation: 'shimmer 4s linear infinite',
         opacity: 0.9
       }} />
+
+      {!isSubscriptionActive && role === 'BUSINESS_USER' && (
+        <div style={{
+          background: 'linear-gradient(90deg, #991b1b 0%, #b91c1c 50%, #c2410c 100%)',
+          color: '#ffffff',
+          padding: '9px 18px',
+          fontSize: '0.84rem',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          boxShadow: '0 4px 14px rgba(185, 28, 28, 0.35)',
+          borderBottom: '1px solid rgba(254, 202, 202, 0.25)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertTriangle size={17} color="#fef08a" />
+            <span>
+              <strong>Subscription Plan Expired:</strong> Your plan has ended. You must take a subscription again before you can perform business actions (Queue Desk, Services, Counters &amp; Analytics).
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('subscription')}
+            style={{
+              background: '#ffffff',
+              color: '#991b1b',
+              border: 'none',
+              padding: '4px 14px',
+              borderRadius: 20,
+              fontWeight: 800,
+              fontSize: '0.78rem',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+              transition: 'transform 0.15s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.04)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            Renew Plan Now &rarr;
+          </button>
+        </div>
+      )}
 
       <style>{`
         @media (min-width: 768px) {

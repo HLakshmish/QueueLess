@@ -14,12 +14,13 @@ import BusinessAnalytics from './pages/business/BusinessAnalytics';
 import SubscriptionBilling from './pages/business/SubscriptionBilling';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
+import SubscriptionRequiredCard from './components/SubscriptionRequiredCard';
 
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 
 function MainApp() {
-  const { role, user, loading } = useAuth();
+  const { role, user, loading, isSubscriptionActive } = useAuth();
   const [currentView, setCurrentView] = useState('explore');
   const [activeTicketId, setActiveTicketId] = useState(null);
   const [pendingQueue, setPendingQueue] = useState(() => {
@@ -31,18 +32,22 @@ function MainApp() {
     }
   });
 
-  // Sync default view when role changes
+  // Sync default view when role or subscription state changes
   useEffect(() => {
     if (role === 'APPLICATION_MANAGER') {
       setCurrentView('admin-dashboard');
     } else if (role === 'BUSINESS_USER') {
-      setCurrentView('business-desk');
+      if (!isSubscriptionActive) {
+        setCurrentView('subscription');
+      } else if (currentView === 'subscription' || currentView === 'explore') {
+        setCurrentView('business-desk');
+      }
     } else {
-      if (currentView === 'admin-dashboard' || currentView === 'business-desk' || currentView === 'services') {
+      if (currentView === 'admin-dashboard' || currentView === 'business-desk' || currentView === 'services' || currentView === 'business-analytics' || currentView === 'subscription') {
         setCurrentView('explore');
       }
     }
-  }, [role]);
+  }, [role, isSubscriptionActive]);
 
   if (loading) {
     return (
@@ -120,11 +125,40 @@ function MainApp() {
           }} />
         )}
 
-        {/* Business User Views */}
-        {currentView === 'business-desk' && <BusinessDashboard />}
-        {currentView === 'services' && <ServicesBranches onNavigate={(view) => setCurrentView(view)} />}
-        {currentView === 'business-analytics' && <BusinessAnalytics />}
-        {currentView === 'subscription' && <SubscriptionBilling />}
+        {/* Business User Views - Guaranteed Subscription Guard */}
+        {currentView === 'business-desk' && (
+          !isSubscriptionActive ? (
+            <SubscriptionRequiredCard
+              featureName="Queue Desk & Customer Calling"
+              onGoToSubscription={() => setCurrentView('subscription')}
+            />
+          ) : (
+            <BusinessDashboard />
+          )
+        )}
+        {currentView === 'services' && (
+          !isSubscriptionActive ? (
+            <SubscriptionRequiredCard
+              featureName="Services, Branches & Counters"
+              onGoToSubscription={() => setCurrentView('subscription')}
+            />
+          ) : (
+            <ServicesBranches onNavigate={(view) => setCurrentView(view)} />
+          )
+        )}
+        {currentView === 'business-analytics' && (
+          !isSubscriptionActive ? (
+            <SubscriptionRequiredCard
+              featureName="Live Throughput & Operational Analytics"
+              onGoToSubscription={() => setCurrentView('subscription')}
+            />
+          ) : (
+            <BusinessAnalytics />
+          )
+        )}
+        {currentView === 'subscription' && (
+          <SubscriptionBilling onPlanActivated={() => setCurrentView('business-desk')} />
+        )}
 
         {/* Admin Views */}
         {currentView === 'admin-dashboard' && <AdminDashboard />}

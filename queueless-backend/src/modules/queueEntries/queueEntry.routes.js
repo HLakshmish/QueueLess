@@ -29,9 +29,31 @@ export default async function queueEntryRoutes(fastify, options) {
           businessId,
         },
       },
+      include: {
+        business: {
+          include: { subscription: true },
+        },
+      },
     });
 
-    return !!membership;
+    if (!membership) return false;
+
+    const sub = membership.business?.subscription;
+    const isExpired = !sub ||
+      ['EXPIRED', 'CANCELLED', 'PAST_DUE', 'SUSPENDED'].includes(sub.status) ||
+      (sub.endDate && new Date(sub.endDate).getTime() <= Date.now());
+
+    if (isExpired) {
+      if (sub && sub.status !== 'EXPIRED' && sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) {
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: { status: 'EXPIRED' },
+        }).catch(() => {});
+      }
+      return false;
+    }
+
+    return true;
   }
 
   // Helper to re-calculate customer position and estimated wait

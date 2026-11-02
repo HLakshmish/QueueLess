@@ -60,4 +60,36 @@ export default async function subscriptionRoutes(fastify, options) {
       return reply.send({ success: true, data: subscription });
     }
   );
+
+  // POST /api/v1/subscriptions/expire-current - Simulate plan expiry (for testing & verification)
+  fastify.post(
+    '/expire-current',
+    { preHandler: [fastify.authenticate, fastify.authorizeRoles('BUSINESS_USER', 'APPLICATION_MANAGER')] },
+    async (request, reply) => {
+      const { businessId } = request.body;
+      if (!businessId) {
+        return reply.code(400).send({ success: false, error: 'Business ID is required' });
+      }
+
+      const existing = await prisma.subscription.findUnique({ where: { businessId } });
+      if (!existing) {
+        return reply.code(404).send({ success: false, error: 'No subscription found for business' });
+      }
+
+      const expiredSub = await prisma.subscription.update({
+        where: { businessId },
+        data: {
+          status: 'EXPIRED',
+          endDate: new Date(Date.now() - 24 * 60 * 60 * 1000), // yesterday
+        },
+        include: { plan: true },
+      });
+
+      return reply.send({
+        success: true,
+        data: expiredSub,
+        message: 'Plan has expired! Business actions are now locked until a new subscription is purchased.',
+      });
+    }
+  );
 }

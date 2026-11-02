@@ -152,6 +152,16 @@ export default async function businessRoutes(fastify, options) {
       return reply.code(404).send({ success: false, error: 'Business not found' });
     }
 
+    if (business.subscription && business.subscription.endDate && new Date(business.subscription.endDate).getTime() <= Date.now()) {
+      if (business.subscription.status !== 'EXPIRED') {
+        await prisma.subscription.update({
+          where: { id: business.subscription.id },
+          data: { status: 'EXPIRED' },
+        }).catch(() => {});
+        business.subscription.status = 'EXPIRED';
+      }
+    }
+
     return reply.send({ success: true, data: business });
   });
 

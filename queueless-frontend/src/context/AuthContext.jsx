@@ -91,12 +91,23 @@ export function AuthProvider({ children }) {
 
   const activeBusiness = user?.memberships?.[0]?.business || null;
 
+  const isSubscriptionActive = (() => {
+    if (!user || user.role !== 'BUSINESS_USER') return true;
+    if (!activeBusiness) return false;
+    const sub = activeBusiness.subscription;
+    if (!sub) return false;
+    if (!['ACTIVE', 'TRIAL'].includes(sub.status)) return false;
+    if (sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) return false;
+    return true;
+  })();
+
   return (
     <AuthContext.Provider
       value={{
         user,
         role: user?.role || null,
         activeBusiness,
+        isSubscriptionActive,
         loading,
         login,
         register,

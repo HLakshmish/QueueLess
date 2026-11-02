@@ -98,6 +98,7 @@ export const api = {
   // Subscriptions & Plans
   getPlans: () => apiRequest('/subscriptions/plans'),
   subscribeBusiness: (data) => apiRequest('/subscriptions/subscribe', { method: 'POST', body: JSON.stringify(data) }),
+  expireCurrentSubscription: (businessId) => apiRequest('/subscriptions/expire-current', { method: 'POST', body: JSON.stringify({ businessId }) }),
 
   // Payments (Razorpay)
   getRazorpayConfig: () => apiRequest('/payments/razorpay/config'),

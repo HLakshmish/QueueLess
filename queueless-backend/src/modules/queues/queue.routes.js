@@ -37,11 +37,37 @@ export default async function queueRoutes(fastify, options) {
           businessId,
         },
       },
+      include: {
+        business: {
+          include: { subscription: true },
+        },
+      },
     });
     if (!membership) {
       reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this business' });
       return false;
     }
+
+    const sub = membership.business?.subscription;
+    const isExpired = !sub ||
+      ['EXPIRED', 'CANCELLED', 'PAST_DUE', 'SUSPENDED'].includes(sub.status) ||
+      (sub.endDate && new Date(sub.endDate).getTime() <= Date.now());
+
+    if (isExpired) {
+      if (sub && sub.status !== 'EXPIRED' && sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) {
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: { status: 'EXPIRED' },
+        }).catch(() => {});
+      }
+      reply.code(403).send({
+        success: false,
+        error: 'Subscription plan has expired. Please renew your subscription to perform queue actions.',
+        code: 'SUBSCRIPTION_EXPIRED',
+      });
+      return false;
+    }
+
     return true;
   }
 

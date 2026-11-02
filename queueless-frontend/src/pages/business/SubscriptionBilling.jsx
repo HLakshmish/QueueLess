@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Check, ShieldCheck, Zap } from 'lucide-react';
+import { Check, ShieldCheck, Zap, AlertTriangle, CheckCircle2, Lock, ArrowRight, RefreshCw } from 'lucide-react';
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
@@ -18,12 +18,14 @@ const loadRazorpayScript = () => {
   });
 };
 
-export default function SubscriptionBilling() {
-  const { user, activeBusiness } = useAuth();
+export default function SubscriptionBilling({ onPlanActivated }) {
+  const { user, activeBusiness, refreshUser, isSubscriptionActive } = useAuth();
   const [plans, setPlans] = useState([]);
   const [currentPlan, setCurrentPlan] = useState(null);
+  const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState(false);
+  const [actionSuccessMessage, setActionSuccessMessage] = useState('');
 
   useEffect(() => {
     loadPlans();
@@ -39,6 +41,7 @@ export default function SubscriptionBilling() {
         const bRes = await api.getBusinessById(activeBusiness.id);
         if (bRes.success && bRes.data.subscription) {
           setCurrentPlan(bRes.data.subscription.plan);
+          setSubscriptionData(bRes.data.subscription);
         }
       }
     } catch (err) {
@@ -51,19 +54,24 @@ export default function SubscriptionBilling() {
   const handleSelectPlan = async (plan) => {
     if (!activeBusiness) return;
     setSubscribing(true);
+    setActionSuccessMessage('');
 
     try {
       const isPaid = Number(plan.priceMonthly) > 0;
 
       if (!isPaid) {
-        // Free / Trial plan upgrade
+        // Free / Trial plan upgrade or renewal
         const res = await api.subscribeBusiness({
           businessId: activeBusiness.id,
           planId: plan.id,
         });
         if (res.success) {
-          alert(`Successfully switched to the ${plan.name} Plan!`);
-          setCurrentPlan(plan);
+          await refreshUser();
+          await loadPlans();
+          setActionSuccessMessage(`Successfully subscribed to ${plan.name} Plan! All business actions are now unlocked.`);
+          if (onPlanActivated) {
+            setTimeout(() => onPlanActivated(), 1800);
+          }
         }
         setSubscribing(false);
         return;
@@ -93,7 +101,7 @@ export default function SubscriptionBilling() {
         amount: orderRes.order.amount,
         currency: orderRes.order.currency || 'INR',
         name: 'QueueLess Subscriptions',
-        description: `Upgrade to ${plan.name} Plan - ${activeBusiness.name}`,
+        description: `Subscription to ${plan.name} Plan - ${activeBusiness.name}`,
         order_id: orderRes.order.id,
         prefill: {
           name: user?.fullName || '',
@@ -105,7 +113,7 @@ export default function SubscriptionBilling() {
         },
         modal: {
           ondismiss: () => {
-            setSubmitting(false);
+            setSubscribing(false);
           },
         },
         handler: async function (response) {
@@ -120,8 +128,12 @@ export default function SubscriptionBilling() {
             });
 
             if (verifyRes.success) {
-              alert(`Payment successful! Your business is now on the ${plan.name} Plan.`);
-              setCurrentPlan(plan);
+              await refreshUser();
+              await loadPlans();
+              setActionSuccessMessage(`Payment successful! Your business is now on the ${plan.name} Plan. Business desk unlocked!`);
+              if (onPlanActivated) {
+                setTimeout(() => onPlanActivated(), 1800);
+              }
             } else {
               alert(verifyRes.error || 'Payment verification failed.');
             }
@@ -159,14 +171,132 @@ export default function SubscriptionBilling() {
     );
   }
 
+  const isExpired = !isSubscriptionActive;
+  const endDateStr = subscriptionData?.endDate ? new Date(subscriptionData.endDate).toLocaleDateString() : 'N/A';
+
   return (
     <div className="page-container" style={{ maxWidth: 1200 }}>
+      {/* Top Status Banner */}
+      {isExpired ? (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%)',
+            border: '2px solid #f87171',
+            borderRadius: 18,
+            padding: '24px 28px',
+            marginBottom: 32,
+            boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 20
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{
+              width: 50,
+              height: 50,
+              borderRadius: 14,
+              background: '#ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
+              flexShrink: 0
+            }}>
+              <Lock size={26} color="#ffffff" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: '1.18rem', fontWeight: 800, color: '#991b1b' }}>
+                  Subscription Plan Over &bull; Renewal Required
+                </span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  textTransform: 'uppercase'
+                }}>
+                  Actions Locked
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.88rem', color: '#7f1d1d' }}>
+                Your business subscription has expired (ended on {endDateStr}). <strong>You must take a subscription again below</strong>. Once subscribed, you will immediately be able to move to actions inside the business portal (Queue Desk, Services, Counters &amp; Analytics).
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #f0fdfa 100%)',
+            border: '1px solid #86efac',
+            borderRadius: 18,
+            padding: '18px 24px',
+            marginBottom: 32,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <CheckCircle2 size={24} color="#16a34a" />
+            <div>
+              <div style={{ fontWeight: 800, color: '#166534', fontSize: '0.98rem' }}>
+                Subscription is Active &bull; {currentPlan?.name || 'Standard'} Plan
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#15803d' }}>
+                Valid through {endDateStr}. All business actions and queue operations are currently unlocked.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {actionSuccessMessage && (
+        <div
+          style={{
+            background: '#ecfdf5',
+            border: '1px solid #34d399',
+            borderRadius: 14,
+            padding: '16px 20px',
+            marginBottom: 28,
+            color: '#065f46',
+            fontWeight: 700,
+            fontSize: '0.92rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <CheckCircle2 size={20} color="#059669" />
+            <span>{actionSuccessMessage}</span>
+          </div>
+          {onPlanActivated && (
+            <button
+              onClick={onPlanActivated}
+              className="btn-primary"
+              style={{ padding: '6px 16px', fontSize: '0.82rem', borderRadius: 20 }}
+            >
+              Proceed to Queue Desk &rarr;
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="page-header" style={{ textAlign: 'center', marginBottom: 40 }}>
         <h1 style={{ fontSize: '2.4rem', marginBottom: 12 }}>
           Subscription &amp; <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SaaS Plans</span>
         </h1>
-        <p style={{ maxWidth: 600, margin: '0 auto' }}>
-          Select the optimal plan to scale your physical queues, multi-branch coverage, and live analytics.
+        <p style={{ maxWidth: 650, margin: '0 auto', color: 'var(--text-muted)' }}>
+          Select or renew a plan to enable physical queue ticketing, multi-branch desks, counter services, and live customer throughput.
         </p>
       </div>
 
@@ -174,38 +304,61 @@ export default function SubscriptionBilling() {
         {plans.map((p) => {
           const isCurrent = currentPlan?.id === p.id;
           const isPro = p.name?.toLowerCase().includes('pro');
+          // If expired, the current plan can be renewed!
+          const canRenewCurrent = isCurrent && isExpired;
+          const isButtonDisabled = (isCurrent && !isExpired) || subscribing;
+
           return (
-            <div 
-              key={p.id} 
-              className={isCurrent ? "shining-card glass-panel-glow" : "shining-card"} 
-              style={{ 
-                padding: 28, 
-                display: 'flex', 
-                flexDirection: 'column', 
+            <div
+              key={p.id}
+              className={isCurrent ? "shining-card glass-panel-glow" : "shining-card"}
+              style={{
+                padding: 28,
+                display: 'flex',
+                flexDirection: 'column',
                 justifyContent: 'space-between',
                 position: 'relative',
-                background: '#ffffff'
+                background: '#ffffff',
+                border: canRenewCurrent ? '2px solid #f87171' : isCurrent ? '2px solid var(--accent-primary)' : '1px solid var(--border-light)'
               }}
             >
               <div>
                 {(isCurrent || isPro) && (
                   <div style={{ marginBottom: 10 }}>
                     {isCurrent ? (
-                      <span style={{
-                        background: 'var(--accent-primary)',
-                        color: '#ffffff',
-                        fontSize: '0.68rem',
-                        fontWeight: 800,
-                        padding: '4px 12px',
-                        borderRadius: 20,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
-                        display: 'inline-block',
-                        lineHeight: 1.2
-                      }}>
-                        Active Plan
-                      </span>
+                      isExpired ? (
+                        <span style={{
+                          background: '#ef4444',
+                          color: '#ffffff',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          padding: '4px 12px',
+                          borderRadius: 20,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          boxShadow: '0 2px 8px rgba(239, 68, 68, 0.35)',
+                          display: 'inline-block',
+                          lineHeight: 1.2
+                        }}>
+                          Plan Expired
+                        </span>
+                      ) : (
+                        <span style={{
+                          background: 'var(--accent-primary)',
+                          color: '#ffffff',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          padding: '4px 12px',
+                          borderRadius: 20,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                          display: 'inline-block',
+                          lineHeight: 1.2
+                        }}>
+                          Active Plan
+                        </span>
+                      )
                     ) : (
                       <span style={{
                         background: 'var(--accent-gradient)',
@@ -254,13 +407,24 @@ export default function SubscriptionBilling() {
                 </div>
               </div>
 
-              <button 
-                onClick={() => handleSelectPlan(p)} 
-                disabled={isCurrent || subscribing}
-                className={isCurrent ? "btn-secondary" : "btn-primary"}
-                style={{ width: '100%', justifyContent: 'center' }}
+              <button
+                onClick={() => handleSelectPlan(p)}
+                disabled={isButtonDisabled}
+                className={canRenewCurrent ? "btn-primary" : isCurrent && !isExpired ? "btn-secondary" : "btn-primary"}
+                style={{
+                  width: '100%',
+                  justifyContent: 'center',
+                  background: canRenewCurrent ? 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)' : undefined,
+                  boxShadow: canRenewCurrent ? '0 4px 14px rgba(239, 68, 68, 0.35)' : undefined
+                }}
               >
-                {isCurrent ? 'Current Plan' : `Upgrade to ${p.name}`}
+                {canRenewCurrent ? (
+                  `Renew ${p.name} Plan`
+                ) : isCurrent && !isExpired ? (
+                  'Current Active Plan'
+                ) : (
+                  `Subscribe to ${p.name}`
+                )}
               </button>
             </div>
           );

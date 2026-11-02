@@ -102,6 +102,22 @@ export default async function authRoutes(fastify, options) {
 
     const { passwordHash, ...userData } = user;
 
+    // Check if subscription has expired by date and sync status
+    if (userData.memberships) {
+      for (const m of userData.memberships) {
+        const sub = m.business?.subscription;
+        if (sub && sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) {
+          if (sub.status !== 'EXPIRED') {
+            await prisma.subscription.update({
+              where: { id: sub.id },
+              data: { status: 'EXPIRED' },
+            }).catch(() => {});
+            sub.status = 'EXPIRED';
+          }
+        }
+      }
+    }
+
     return reply.send({
       success: true,
       data: {
@@ -135,6 +151,26 @@ export default async function authRoutes(fastify, options) {
         },
       },
     });
+
+    if (!user) {
+      return reply.code(404).send({ success: false, error: 'User not found' });
+    }
+
+    // Check if subscription has expired by date and sync status
+    if (user.memberships) {
+      for (const m of user.memberships) {
+        const sub = m.business?.subscription;
+        if (sub && sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) {
+          if (sub.status !== 'EXPIRED') {
+            await prisma.subscription.update({
+              where: { id: sub.id },
+              data: { status: 'EXPIRED' },
+            }).catch(() => {});
+            sub.status = 'EXPIRED';
+          }
+        }
+      }
+    }
 
     return reply.send({ success: true, data: user });
   });

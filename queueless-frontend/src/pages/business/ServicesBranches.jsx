@@ -358,7 +358,7 @@ export default function ServicesBranches({ onNavigate }) {
               flexShrink: 0
             }}>
               <ShieldAlert size={20} />
-            </div>
+            </div> 
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)' }}>

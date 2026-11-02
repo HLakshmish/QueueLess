@@ -23,11 +23,37 @@ export default async function serviceRoutes(fastify, options) {
           businessId: branch.businessId,
         },
       },
+      include: {
+        business: {
+          include: { subscription: true },
+        },
+      },
     });
     if (!membership) {
       reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this branch' });
       return null;
     }
+
+    const sub = membership.business?.subscription;
+    const isExpired = !sub ||
+      ['EXPIRED', 'CANCELLED', 'PAST_DUE', 'SUSPENDED'].includes(sub.status) ||
+      (sub.endDate && new Date(sub.endDate).getTime() <= Date.now());
+
+    if (isExpired) {
+      if (sub && sub.status !== 'EXPIRED' && sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) {
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: { status: 'EXPIRED' },
+        }).catch(() => {});
+      }
+      reply.code(403).send({
+        success: false,
+        error: 'Subscription plan has expired. Please renew your subscription to manage branches and services.',
+        code: 'SUBSCRIPTION_EXPIRED',
+      });
+      return null;
+    }
+
     return branch;
   }
 
@@ -53,11 +79,37 @@ export default async function serviceRoutes(fastify, options) {
           businessId: service.branch.businessId,
         },
       },
+      include: {
+        business: {
+          include: { subscription: true },
+        },
+      },
     });
     if (!membership) {
       reply.code(403).send({ success: false, error: 'Forbidden: You do not manage this service' });
       return false;
     }
+
+    const sub = membership.business?.subscription;
+    const isExpired = !sub ||
+      ['EXPIRED', 'CANCELLED', 'PAST_DUE', 'SUSPENDED'].includes(sub.status) ||
+      (sub.endDate && new Date(sub.endDate).getTime() <= Date.now());
+
+    if (isExpired) {
+      if (sub && sub.status !== 'EXPIRED' && sub.endDate && new Date(sub.endDate).getTime() <= Date.now()) {
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: { status: 'EXPIRED' },
+        }).catch(() => {});
+      }
+      reply.code(403).send({
+        success: false,
+        error: 'Subscription plan has expired. Please renew your subscription to manage services.',
+        code: 'SUBSCRIPTION_EXPIRED',
+      });
+      return false;
+    }
+
     return service;
   }
 
